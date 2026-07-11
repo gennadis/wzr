@@ -48,13 +48,20 @@
     .save-bar input { flex: 1; }
     #save-status { font-size: 0.8rem; color: var(--accent); }
 
+    /* thinking indicator */
+    .thinking-bubble { display: flex; gap: 0.35rem; align-items: center; padding: 0.6rem 0.9rem; background: var(--border); border-radius: 6px; align-self: flex-start; }
+    .thinking-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); animation: thinking-bounce 1.2s ease-in-out infinite; }
+    .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes thinking-bounce { 0%, 80%, 100% { transform: translateY(0); background: var(--text-muted); } 40% { transform: translateY(-6px); background: var(--accent); } }
+
     /* markdown rendering inside AI chat bubbles */
     .chat-msg.ai p { margin: 0.25rem 0; }
     .chat-msg.ai p:first-child { margin-top: 0; }
     .chat-msg.ai p:last-child { margin-bottom: 0; }
     .chat-msg.ai ul { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
     .chat-msg.ai li { margin: 0.1rem 0; }
-    .chat-msg.ai code { background: rgba(0,0,0,0.35); padding: 0.1rem 0.35rem; border-radius: 3px; font-family: monospace; font-size: 0.78rem; }
+    .chat-msg.ai code { background: rgba(0,0,0,0.4); padding: 0.1rem 0.35rem; border-radius: 3px; font-family: monospace; font-size: 0.78rem; color: var(--text); }
     .chat-msg.ai pre { background: #0a0f15; border: 1px solid var(--border); border-radius: 4px; padding: 0.55rem 0.75rem; overflow-x: auto; margin: 0.4rem 0; }
     .chat-msg.ai pre code { background: none; padding: 0; color: #7ec8e3; }
     .chat-msg.ai h1, .chat-msg.ai h2, .chat-msg.ai h3 { margin: 0.45rem 0 0.2rem; font-size: 0.875rem; }
@@ -253,9 +260,11 @@
       const msg = input.value.trim();
       if (!msg) return;
       input.value = '';
+      input.disabled = true;
 
       appendChatMsg(msg, 'user');
       chatHistory.push({ role: 'user', text: msg });
+      showThinking();
 
       try {
         const res = await fetch('/api/creator/message', {
@@ -264,6 +273,7 @@
           body: JSON.stringify({ message: msg, steps, history: chatHistory }),
         });
         const text = await res.text();
+        hideThinking();
 
         // Extract the first complete JSON object from the response
         const step = extractFirstJSON(text);
@@ -277,8 +287,27 @@
           chatHistory.push({ role: 'assistant', text: reply });
         }
       } catch (err) {
+        hideThinking();
         appendChatMsg('Error calling AI: ' + err.message, 'ai');
+      } finally {
+        input.disabled = false;
+        input.focus();
       }
+    }
+
+    function showThinking() {
+      const area = document.getElementById('chat-area');
+      const el = document.createElement('div');
+      el.id = 'thinking-bubble';
+      el.className = 'thinking-bubble';
+      el.innerHTML = '<div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>';
+      area.appendChild(el);
+      area.scrollTop = area.scrollHeight;
+    }
+
+    function hideThinking() {
+      const el = document.getElementById('thinking-bubble');
+      if (el) el.remove();
     }
 
     function appendChatMsg(text, role) {
