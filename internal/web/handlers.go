@@ -179,7 +179,7 @@ func (s *Server) handleRunChat(w http.ResponseWriter, r *http.Request) {
 	outputCh := make(chan string, 128)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.deps.Qwen.Run(r.Context(), prompt, outputCh)
+		errCh <- s.deps.Qwen.RunText(r.Context(), prompt, outputCh)
 		close(outputCh)
 	}()
 
@@ -391,7 +391,7 @@ func (s *Server) runQwenCollect(r *http.Request, prompt string) (string, error) 
 	outputCh := make(chan string, 128)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.deps.Qwen.Run(r.Context(), prompt, outputCh)
+		errCh <- s.deps.Qwen.RunText(r.Context(), prompt, outputCh)
 		close(outputCh)
 	}()
 	var lines []string

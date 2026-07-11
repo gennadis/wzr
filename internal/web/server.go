@@ -15,7 +15,10 @@ import (
 
 // QwenRunner is the interface for calling Qwen from web handlers.
 type QwenRunner interface {
+	// Run invokes Qwen in agentic mode (tools allowed) — for pipeline step execution.
 	Run(ctx context.Context, prompt string, outputCh chan<- string) error
+	// RunText invokes Qwen in text-only mode (no tools) — for creator and chat calls.
+	RunText(ctx context.Context, prompt string, outputCh chan<- string) error
 }
 
 // Deps holds all handler dependencies injected into Server.
