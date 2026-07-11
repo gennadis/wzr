@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WZR — Pipeline Creator</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    .creator-layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem; margin-top: 1.5rem; height: calc(100vh - 180px); }
+    .sidebar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-y: auto; }
+    .sidebar h3 { color: var(--accent); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 0.75rem; }
+    .sidebar-item { padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; color: var(--muted); transition: background 0.15s; }
+    .sidebar-item:hover { background: var(--border); color: var(--text); }
+    .sidebar-section { margin-bottom: 1.25rem; }
+    .creator-main { display: flex; flex-direction: column; gap: 1rem; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+    .tab { padding: 0.6rem 1.25rem; font-size: 0.875rem; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-top: none; border-left: none; border-right: none; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; flex: 1; flex-direction: column; gap: 1rem; }
+    .tab-panel.active { display: flex; }
+
+    /* step-by-step tab */
+    .chat-area { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; min-height: 200px; }
+    .chat-msg { padding: 0.6rem 0.9rem; border-radius: 6px; font-size: 0.875rem; max-width: 85%; }
+    .chat-msg.user { background: #1a2a4a; align-self: flex-end; color: var(--text); }
+    .chat-msg.ai { background: var(--border); align-self: flex-start; color: var(--text); }
+    .step-suggestion { background: var(--card); border: 1px solid var(--accent); border-radius: 6px; padding: 0.75rem; font-size: 0.8rem; }
+    .step-suggestion pre { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--muted); overflow-x: auto; }
+    .chat-form { display: flex; gap: 0.5rem; }
+    .chat-form input { flex: 1; }
+    .steps-accumulated { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .steps-accumulated h4 { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .step-chip { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--border); border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 0.75rem; margin: 0.2rem; }
+    .step-chip .remove { cursor: pointer; color: var(--muted); font-size: 0.9rem; line-height: 1; }
+    .step-chip .remove:hover { color: #ff6b6b; }
+    .empty-steps { color: var(--muted); font-size: 0.8rem; font-style: italic; }
+
+    /* generate tab */
+    .generate-area { display: flex; flex-direction: column; gap: 1rem; flex: 1; }
+    .generate-area textarea { flex: 1; min-height: 100px; resize: vertical; }
+    .yaml-preview { flex: 1; background: #0a0f15; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow: auto; }
+    .yaml-preview pre { margin: 0; font-size: 0.8rem; color: #7ec8e3; white-space: pre-wrap; }
+
+    /* save bar */
+    .save-bar { display: flex; gap: 0.75rem; align-items: center; padding: 0.75rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+    .save-bar label { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+    .save-bar input { flex: 1; }
+    #save-status { font-size: 0.8rem; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="/" class="nav-brand">WZR</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/creator" class="active">Creator</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/templates">Templates</a>
+    </div>
+  </nav>
+
+  <main style="max-width:1200px;margin:0 auto;padding:0 1.5rem;">
+    <h2 style="margin:1rem 0 0.25rem;">Pipeline Creator</h2>
+    <p style="color:var(--muted);font-size:0.875rem;margin:0 0 0.5rem;">Build pipelines step-by-step with AI assistance or describe your goal and generate a full YAML.</p>
+
+    <div class="tab-bar">
+      <button class="tab active" onclick="switchTab('stepbystep', this)">Step by Step</button>
+      <button class="tab" onclick="switchTab('generate', this)">Describe &amp; Generate</button>
+    </div>
+
+    <div class="creator-layout">
+      <!-- Sidebar: skills and MCPs -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h3>Skills</h3>
+          <div id="skill-list"><span class="sidebar-item" style="color:var(--muted);font-style:italic">Loading…</span></div>
+        </div>
+        <div class="sidebar-section">
+          <h3>MCP Servers</h3>
+          <div id="mcp-list"><span class="sidebar-item" style="color:var(--muted);font-style:italic">Loading…</span></div>
+        </div>
+      </aside>
+
+      <!-- Main area -->
+      <div class="creator-main">
+
+        <!-- Step-by-step tab -->
+        <div id="panel-stepbystep" class="tab-panel active">
+          <div class="chat-area" id="chat-area">
+            <div class="chat-msg ai">Hi! Describe what this pipeline step should do and I'll suggest the step configuration.</div>
+          </div>
+          <form class="chat-form" onsubmit="sendChatMessage(event)">
+            <input id="chat-input" type="text" placeholder="Describe what the next step should do…" autocomplete="off">
+            <button type="submit">Send</button>
+          </form>
+          <div class="steps-accumulated">
+            <h4>Accumulated steps <span id="step-count" style="color:var(--accent)">(0)</span></h4>
+            <div id="step-chips"><span class="empty-steps">No steps added yet. Chat with AI to build steps.</span></div>
+          </div>
+        </div>
+
+        <!-- Describe & Generate tab -->
+        <div id="panel-generate" class="tab-panel">
+          <div class="generate-area">
+            <label style="font-size:0.875rem;color:var(--muted)">Describe your pipeline goal:</label>
+            <textarea id="gen-description" placeholder="e.g. Check Jira tickets are ready, verify Bitbucket PRs merged, trigger Jenkins build, get human approval, then update Confluence and close tickets."></textarea>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <button onclick="generatePipeline()">Generate YAML</button>
+              <span id="gen-status" style="font-size:0.8rem;color:var(--muted)"></span>
+            </div>
+            <div class="yaml-preview">
+              <pre id="yaml-output">Generated YAML will appear here…</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Save bar (shared) -->
+        <div class="save-bar">
+          <label for="pipeline-name">Pipeline name:</label>
+          <input id="pipeline-name" type="text" placeholder="my-pipeline">
+          <button onclick="savePipeline()">Save Pipeline</button>
+          <span id="save-status"></span>
+        </div>
+
+      </div><!-- end creator-main -->
+    </div><!-- end creator-layout -->
+  </main>
+
+  <script>
+    // State
+    const steps = [];
+    let generatedYAML = '';
+
+    // --- Tab switching ---
+    function switchTab(id, btn) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-' + id).classList.add('active');
+    }
+
+    // --- Load sidebar data ---
+    async function loadSidebar() {
+      try {
+        const [skillsRes, mcpsRes] = await Promise.all([
+          fetch('/api/skills'),
+          fetch('/api/mcps'),
+        ]);
+        const skills = await skillsRes.json();
+        const mcps = await mcpsRes.json();
+
+        const skillEl = document.getElementById('skill-list');
+        skillEl.innerHTML = skills.map(s =>
+          `<div class="sidebar-item" title="${s.Name}" onclick="insertSkillHint('${s.Name}')">${s.Name}</div>`
+        ).join('');
+
+        const mcpEl = document.getElementById('mcp-list');
+        mcpEl.innerHTML = mcps.map(m =>
+          `<div class="sidebar-item" title="${m.Description}">${m.Name}</div>`
+        ).join('');
+      } catch (e) {
+        console.error('sidebar load error:', e);
+      }
+    }
+
+    function insertSkillHint(name) {
+      const input = document.getElementById('chat-input');
+      input.value = `Use the "${name}" skill to `;
+      input.focus();
+    }
+
+    // --- Step-by-step chat ---
+    async function sendChatMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = '';
+
+      appendChatMsg(msg, 'user');
+
+      try {
+        const res = await fetch('/api/creator/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, steps }),
+        });
+        const text = await res.text();
+        let step = null;
+        try { step = JSON.parse(text); } catch (_) { /* non-JSON response */ }
+
+        if (step && step.id) {
+          appendStepSuggestion(step);
+        } else {
+          appendChatMsg(text || '(no response)', 'ai');
+        }
+      } catch (err) {
+        appendChatMsg('Error calling AI: ' + err.message, 'ai');
+      }
+    }
+
+    function appendChatMsg(text, role) {
+      const area = document.getElementById('chat-area');
+      const div = document.createElement('div');
+      div.className = 'chat-msg ' + role;
+      div.textContent = text;
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+    }
+
+    function appendStepSuggestion(step) {
+      const area = document.getElementById('chat-area');
+      const div = document.createElement('div');
+      div.className = 'step-suggestion';
+      div.innerHTML = `
+        <strong>${step.name || step.id}</strong>
+        <span style="color:var(--muted);font-size:0.75rem;margin-left:0.5rem">[${step.type}]</span>
+        <pre>${JSON.stringify(step, null, 2)}</pre>
+        <button style="margin-top:0.5rem;font-size:0.75rem" onclick='addStep(${JSON.stringify(step)}, this.closest(".step-suggestion"))'>Add to pipeline</button>
+      `;
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+    }
+
+    function addStep(step, el) {
+      steps.push(step);
+      renderStepChips();
+      el.style.opacity = '0.5';
+      el.querySelector('button').disabled = true;
+    }
+
+    function removeStep(idx) {
+      steps.splice(idx, 1);
+      renderStepChips();
+    }
+
+    function renderStepChips() {
+      const el = document.getElementById('step-chips');
+      document.getElementById('step-count').textContent = '(' + steps.length + ')';
+      if (steps.length === 0) {
+        el.innerHTML = '<span class="empty-steps">No steps added yet. Chat with AI to build steps.</span>';
+        return;
+      }
+      el.innerHTML = steps.map((s, i) =>
+        `<span class="step-chip">${s.name || s.id} <span class="remove" onclick="removeStep(${i})">&times;</span></span>`
+      ).join('');
+    }
+
+    // --- Describe & Generate ---
+    async function generatePipeline() {
+      const desc = document.getElementById('gen-description').value.trim();
+      if (!desc) { alert('Please describe your pipeline.'); return; }
+      const status = document.getElementById('gen-status');
+      status.textContent = 'Generating…';
+      document.getElementById('yaml-output').textContent = '';
+      try {
+        const res = await fetch('/api/creator/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: desc }),
+        });
+        generatedYAML = await res.text();
+        document.getElementById('yaml-output').textContent = generatedYAML;
+        status.textContent = 'Done.';
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    // --- Save pipeline ---
+    async function savePipeline() {
+      const nameInput = document.getElementById('pipeline-name').value.trim();
+      const statusEl = document.getElementById('save-status');
+
+      // Determine which tab is active
+      const isGenTab = document.getElementById('panel-generate').classList.contains('active');
+      let yaml = '';
+
+      if (isGenTab) {
+        yaml = generatedYAML;
+        if (!yaml) { statusEl.textContent = 'Generate a pipeline first.'; return; }
+        // Inject name override if user provided one
+        if (nameInput) {
+          yaml = yaml.replace(/^name:\s*.+$/m, 'name: ' + nameInput);
+        }
+      } else {
+        // Build YAML from accumulated steps
+        if (steps.length === 0) { statusEl.textContent = 'Add at least one step first.'; return; }
+        if (!nameInput) { statusEl.textContent = 'Enter a pipeline name first.'; return; }
+        yaml = buildYAMLFromSteps(nameInput, steps);
+      }
+
+      try {
+        const res = await fetch('/api/pipelines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: yaml,
+        });
+        if (res.ok) {
+          statusEl.textContent = 'Saved!';
+          setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        } else {
+          const body = await res.text();
+          statusEl.textContent = 'Error: ' + body;
+        }
+      } catch (err) {
+        statusEl.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function buildYAMLFromSteps(name, steps) {
+      let yaml = `name: ${name}\nversion: "1.0"\nsteps:\n`;
+      for (const s of steps) {
+        yaml += `  - id: ${s.id || 'step'}\n`;
+        yaml += `    name: ${s.name || s.id}\n`;
+        yaml += `    type: ${s.type || 'skill'}\n`;
+        if (s.skill) yaml += `    skill: ${s.skill}\n`;
+        if (s.server) yaml += `    server: ${s.server}\n`;
+        if (s.tool) yaml += `    tool: ${s.tool}\n`;
+        if (s.params && Object.keys(s.params).length > 0) {
+          yaml += `    params:\n`;
+          for (const [k, v] of Object.entries(s.params)) {
+            yaml += `      ${k}: "${v}"\n`;
+          }
+        }
+        if (s.type === 'approval' && s.timeout_minutes) {
+          yaml += `    timeout_minutes: ${s.timeout_minutes}\n`;
+        }
+      }
+      return yaml;
+    }
+
+    // Init
+    loadSidebar();
+  </script>
+</body>
+</html>
