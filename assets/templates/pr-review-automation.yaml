@@ -1,0 +1,40 @@
+name: pr-review-automation
+version: "1.0"
+description: Fetch open Bitbucket PRs, run AI code review via Qwen, post review summary to Confluence, and notify the team.
+manual_minutes: 45
+params:
+  repository: ""
+  confluence_space: "TEAM"
+steps:
+  - id: fetch-prs
+    name: Fetch open pull requests
+    type: mcp
+    server: bitbucket
+    tool: list_pull_requests
+    params:
+      repository: "{{ .repository }}"
+      state: OPEN
+
+  - id: review-code
+    name: AI code review
+    type: skill
+    skill: review-pull-requests
+    params:
+      repository: "{{ .repository }}"
+
+  - id: post-review
+    name: Post review summary to Confluence
+    type: mcp
+    server: confluence
+    tool: create_page
+    params:
+      space: "{{ .confluence_space }}"
+      title: "PR Review — {{ .repository }}"
+
+  - id: notify-team
+    name: Notify team in SberChat
+    type: skill
+    skill: notify-team
+    params:
+      channel: dev
+      message: "PR review for {{ .repository }} is complete. See Confluence for details."

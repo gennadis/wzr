@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WZR — Templates</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    .templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; margin-top: 1.5rem; }
+    .template-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; transition: border-color 0.15s; }
+    .template-card:hover { border-color: var(--accent); }
+    .template-card h3 { margin: 0; font-size: 0.95rem; }
+    .template-card .desc { font-size: 0.825rem; color: var(--muted); flex: 1; }
+    .template-card .meta { font-size: 0.75rem; color: var(--muted); }
+    .template-card .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .clone-status { font-size: 0.8rem; height: 1.2rem; }
+    .clone-status.ok { color: #4caf7d; }
+    .clone-status.err { color: #e05555; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="/" class="nav-brand">WZR</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/creator">Creator</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/templates" class="active">Templates</a>
+    </div>
+  </nav>
+
+  <main style="max-width:1100px;margin:0 auto;padding:0 1.5rem 2rem;">
+    <h2 style="margin:1rem 0 0.25rem;">Pipeline Templates</h2>
+    <p style="color:var(--muted);font-size:0.875rem;margin:0">Clone a template to your pipeline library, then customize and run it from the dashboard.</p>
+    <div class="templates-grid" id="templates-grid">
+      <div style="color:var(--muted);font-size:0.875rem">Loading templates…</div>
+    </div>
+  </main>
+
+  <script>
+    async function loadTemplates() {
+      const grid = document.getElementById('templates-grid');
+      try {
+        const res = await fetch('/api/templates');
+        const templates = await res.json();
+        if (!templates || templates.length === 0) {
+          grid.innerHTML = '<div style="color:var(--muted)">No templates available.</div>';
+          return;
+        }
+        grid.innerHTML = '';
+        for (const t of templates) {
+          const card = document.createElement('div');
+          card.className = 'template-card';
+          card.innerHTML = `
+            <h3>${t.name}</h3>
+            <div class="desc">${t.description || ''}</div>
+            <div class="meta">${t.step_count} step${t.step_count !== 1 ? 's' : ''}</div>
+            <div class="clone-status" id="status-${t.name}"></div>
+            <div class="actions">
+              <button onclick="cloneTemplate('${t.name}')">Clone &amp; Use</button>
+            </div>
+          `;
+          grid.appendChild(card);
+        }
+      } catch (err) {
+        grid.innerHTML = '<div style="color:#e05555">Error: ' + err.message + '</div>';
+      }
+    }
+
+    async function cloneTemplate(name) {
+      const statusEl = document.getElementById('status-' + name);
+      statusEl.className = 'clone-status';
+      statusEl.textContent = 'Cloning…';
+      try {
+        const res = await fetch('/api/templates/' + encodeURIComponent(name) + '/clone', { method: 'POST' });
+        if (res.ok) {
+          statusEl.className = 'clone-status ok';
+          statusEl.textContent = 'Cloned! Go to Dashboard to run it.';
+        } else {
+          const d = await res.json().catch(() => ({}));
+          statusEl.className = 'clone-status err';
+          statusEl.textContent = 'Error: ' + (d.error || res.statusText);
+        }
+      } catch (err) {
+        statusEl.className = 'clone-status err';
+        statusEl.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    loadTemplates();
+  </script>
+</body>
+</html>

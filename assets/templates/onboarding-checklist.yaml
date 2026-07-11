@@ -1,0 +1,52 @@
+name: onboarding-checklist
+version: "1.0"
+description: Automate new engineer onboarding — create Jira epic, provision Bitbucket access, create Confluence page, and notify the team.
+manual_minutes: 60
+params:
+  engineer_name: ""
+  team: ""
+  jira_project: ""
+  bitbucket_repo: ""
+  confluence_space: "TEAM"
+steps:
+  - id: create-epic
+    name: Create Jira onboarding epic
+    type: mcp
+    server: jira
+    tool: search_issues
+    params:
+      jql: "project = {{ .jira_project }} AND summary ~ 'Onboarding {{ .engineer_name }}'"
+
+  - id: provision-access
+    name: Provision Bitbucket repository access
+    type: skill
+    skill: provision-repo-access
+    params:
+      engineer: "{{ .engineer_name }}"
+      repository: "{{ .bitbucket_repo }}"
+      team: "{{ .team }}"
+
+  - id: create-confluence-page
+    name: Create Confluence onboarding page
+    type: mcp
+    server: confluence
+    tool: create_page
+    params:
+      space: "{{ .confluence_space }}"
+      title: "Onboarding: {{ .engineer_name }}"
+
+  - id: setup-postgres-access
+    name: Check database access setup
+    type: mcp
+    server: postgres
+    tool: list_tables
+    params:
+      schema: public
+
+  - id: notify-team
+    name: Notify team about new engineer
+    type: skill
+    skill: notify-team
+    params:
+      channel: "{{ .team }}"
+      message: "Welcome {{ .engineer_name }}! Onboarding checklist is complete."

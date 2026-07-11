@@ -1,0 +1,65 @@
+name: incident-response
+version: "1.0"
+description: Gather Jenkins logs, search Jira for related issues, AI diagnosis, human approval to rollback, post-mortem to Confluence.
+manual_minutes: 120
+params:
+  job: ""
+  build_number: ""
+  jira_project: ""
+  confluence_space: "OPS"
+steps:
+  - id: gather-logs
+    name: Gather Jenkins build logs
+    type: mcp
+    server: jenkins
+    tool: get_build_status
+    params:
+      job: "{{ .job }}"
+      build_number: "{{ .build_number }}"
+
+  - id: search-issues
+    name: Search Jira for related incidents
+    type: mcp
+    server: jira
+    tool: search_issues
+    params:
+      jql: "project = {{ .jira_project }} AND type = Bug AND created >= -7d ORDER BY created DESC"
+
+  - id: diagnose
+    name: AI incident diagnosis
+    type: skill
+    skill: diagnose-incident
+    params:
+      job: "{{ .job }}"
+      build_number: "{{ .build_number }}"
+
+  - id: approve-rollback
+    name: Approve rollback to previous build
+    type: approval
+    timeout_minutes: 30
+
+  - id: rollback
+    name: Trigger rollback build
+    type: mcp
+    server: jenkins
+    tool: trigger_build
+    params:
+      job: "{{ .job }}/rollback"
+
+  - id: postmortem-doc
+    name: Write post-mortem to Confluence
+    type: mcp
+    server: confluence
+    tool: create_page
+    params:
+      space: "{{ .confluence_space }}"
+      title: "Incident Post-Mortem — {{ .job }} #{{ .build_number }}"
+
+  - id: close-incident
+    name: Transition Jira incident to Resolved
+    type: mcp
+    server: jira
+    tool: transition_issue
+    params:
+      project: "{{ .jira_project }}"
+      target_status: Resolved
