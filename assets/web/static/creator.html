@@ -47,6 +47,19 @@
     .save-bar label { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
     .save-bar input { flex: 1; }
     #save-status { font-size: 0.8rem; color: var(--accent); }
+
+    /* markdown rendering inside AI chat bubbles */
+    .chat-msg.ai p { margin: 0.25rem 0; }
+    .chat-msg.ai p:first-child { margin-top: 0; }
+    .chat-msg.ai p:last-child { margin-bottom: 0; }
+    .chat-msg.ai ul { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
+    .chat-msg.ai li { margin: 0.1rem 0; }
+    .chat-msg.ai code { background: rgba(0,0,0,0.35); padding: 0.1rem 0.35rem; border-radius: 3px; font-family: monospace; font-size: 0.78rem; }
+    .chat-msg.ai pre { background: #0a0f15; border: 1px solid var(--border); border-radius: 4px; padding: 0.55rem 0.75rem; overflow-x: auto; margin: 0.4rem 0; }
+    .chat-msg.ai pre code { background: none; padding: 0; color: #7ec8e3; }
+    .chat-msg.ai h1, .chat-msg.ai h2, .chat-msg.ai h3 { margin: 0.45rem 0 0.2rem; font-size: 0.875rem; }
+    .chat-msg.ai strong { font-weight: 700; }
+    .chat-msg.ai em { font-style: italic; }
   </style>
 </head>
 <body>
@@ -128,6 +141,51 @@
   </main>
 
   <script>
+    // Render a markdown string to safe HTML.
+    function renderMarkdown(text) {
+      function esc(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      function inline(s) {
+        return s
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>');
+      }
+      const lines = text.split('\n');
+      let out = '';
+      let inCode = false;
+      let listItems = [];
+      function flushList() {
+        if (listItems.length) {
+          out += '<ul>' + listItems.map(li => '<li>' + li + '</li>').join('') + '</ul>';
+          listItems = [];
+        }
+      }
+      for (const raw of lines) {
+        if (raw.startsWith('```')) {
+          flushList();
+          inCode = !inCode;
+          out += inCode ? '<pre><code>' : '</code></pre>';
+          continue;
+        }
+        if (inCode) { out += esc(raw) + '\n'; continue; }
+        const listM = raw.match(/^[-*]\s+(.*)/);
+        if (listM) { listItems.push(inline(esc(listM[1]))); continue; }
+        flushList();
+        const hM = raw.match(/^(#{1,6})\s+(.*)/);
+        if (hM) {
+          const lvl = hM[1].length;
+          out += `<h${lvl}>${inline(esc(hM[2]))}</h${lvl}>`;
+        } else if (raw.trim() !== '') {
+          out += '<p>' + inline(esc(raw)) + '</p>';
+        }
+      }
+      flushList();
+      if (inCode) out += '</code></pre>';
+      return out;
+    }
+
     // Extract the first well-formed JSON object from a string.
     function extractFirstJSON(text) {
       const start = text.indexOf('{');
@@ -227,7 +285,11 @@
       const area = document.getElementById('chat-area');
       const div = document.createElement('div');
       div.className = 'chat-msg ' + role;
-      div.textContent = text;
+      if (role === 'ai') {
+        div.innerHTML = renderMarkdown(text);
+      } else {
+        div.textContent = text;
+      }
       area.appendChild(div);
       area.scrollTop = area.scrollHeight;
     }
