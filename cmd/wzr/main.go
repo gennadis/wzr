@@ -6,11 +6,17 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"wzr/assets"
 	"wzr/internal/config"
+	"wzr/internal/mcp"
+	"wzr/internal/notify"
 	"wzr/internal/pipeline"
+	"wzr/internal/qwen"
+	"wzr/internal/runner"
+	"wzr/internal/skills"
 	"wzr/internal/web"
 )
 
@@ -45,14 +51,52 @@ func main() {
 		return
 	}
 
+	if err := os.MkdirAll(cfg.PipelinesDir, 0o750); err != nil {
+		log.Fatalf("create pipelines dir: %v", err)
+	}
+
 	staticFS, err := fs.Sub(assets.WebStaticFS, "web/static")
 	if err != nil {
 		log.Fatalf("sub web/static FS: %v", err)
 	}
+	templatesFS, err := fs.Sub(assets.TemplatesFS, "templates")
+	if err != nil {
+		log.Fatalf("sub templates FS: %v", err)
+	}
+	skillsFS, err := fs.Sub(assets.SkillsFS, "skills")
+	if err != nil {
+		log.Fatalf("sub skills FS: %v", err)
+	}
+
+	skillReg := skills.NewRegistry(skillsFS)
+	mcpReg := mcp.NewRegistry()
+	pipeStore := pipeline.NewStore(cfg.PipelinesDir)
+	sseHub := notify.NewHub()
+	approvalHub := runner.NewApprovalHub()
+	roiTracker := runner.NewROITracker(cfg.HistoryFile)
+	runStore := runner.NewRunStore()
+	qwenClient := qwen.NewClient(cfg.QwenBinary)
+	notifier := notify.NewSSENotifier(sseHub)
+
+	r := runner.NewRunner(skillReg, qwenClient, notifier, approvalHub, roiTracker, runStore)
+
+	deps := web.Deps{
+		StaticFS:    staticFS,
+		TemplatesFS: templatesFS,
+		Skills:      skillReg,
+		MCPs:        mcpReg,
+		PipeStore:   pipeStore,
+		Runner:      r,
+		SSEHub:      sseHub,
+		Approvals:   approvalHub,
+		ROI:         roiTracker,
+		RunStore:    runStore,
+		Qwen:        qwenClient,
+	}
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      web.NewServer(staticFS),
+		Handler:      web.NewServer(deps),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

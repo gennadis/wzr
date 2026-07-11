@@ -51,11 +51,23 @@ func NewRunner(
 	}
 }
 
+// StartAsync begins pipeline execution in a background goroutine and returns
+// the run ID immediately. Use the run ID to subscribe to SSE events.
+func (r *Runner) StartAsync(runID string, p *pipeline.Pipeline, params map[string]string) {
+	go func() {
+		_, _ = r.executeWithID(context.Background(), runID, p, params)
+	}()
+}
+
 // Execute runs a pipeline and returns the final Run record.
 func (r *Runner) Execute(ctx context.Context, p *pipeline.Pipeline, params map[string]string) (*Run, error) {
+	return r.executeWithID(ctx, fmt.Sprintf("run-%d", time.Now().UnixNano()), p, params)
+}
+
+func (r *Runner) executeWithID(ctx context.Context, runID string, p *pipeline.Pipeline, params map[string]string) (*Run, error) {
 	sub := pipeline.SubstituteParams(p, params)
 	run := &Run{
-		ID:           fmt.Sprintf("run-%d", time.Now().UnixNano()),
+		ID:           runID,
 		PipelineName: p.Name,
 		Status:       RunStatusRunning,
 		StartedAt:    time.Now(),
