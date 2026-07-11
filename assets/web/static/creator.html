@@ -370,25 +370,26 @@
     }
 
     // Lightweight YAML syntax highlighter — returns safe HTML.
+    // Uses split() with a capturing group to color template expressions so that
+    // subsequent regexes never run on already-inserted HTML (which would corrupt spans).
     function highlightYAML(raw) {
       function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+      function colorValue(escaped) {
+        // Split on {{ .x }} tokens — odd-indexed parts are the matches.
+        const parts = escaped.split(/(\{\{[^}]+\}\})/);
+        return parts.map((p, i) =>
+          i % 2 === 1 ? `<span style="color:#e08855">${p}</span>` : p
+        ).join('');
+      }
       return raw.split('\n').map(line => {
         // Comment
         if (/^\s*#/.test(line)) return `<span style="color:#6e7681;font-style:italic">${esc(line)}</span>`;
-        // key: value (handles "  - key: val" too)
+        // key: value (handles list items like "  - id: foo" too)
         const km = line.match(/^(\s*(?:-\s+)?)([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:.*)$/);
         if (km) {
           const lead = esc(km[1]);
           const key  = esc(km[2]);
-          let rest   = esc(km[3]);
-          // Template expressions {{ .x }}
-          rest = rest.replace(/(\{\{[^}]+\}\})/g, '<span style="color:#e08855">$1</span>');
-          // Quoted string content
-          rest = rest.replace(/"([^"]*)"/g, '"<span style="color:#a5d6a7">$1</span>"');
-          // Bare numbers
-          rest = rest.replace(/^(:\s*)(\d+)(\s*)$/, '$1<span style="color:#f8c471">$2</span>$3');
-          // Bare booleans / null
-          rest = rest.replace(/^(:\s*)(true|false|null)(\s*)$/, '$1<span style="color:#f8c471">$2</span>$3');
+          const rest = colorValue(esc(km[3]));
           return `${lead}<span style="color:#79c0ff">${key}</span>${rest}`;
         }
         return esc(line);
