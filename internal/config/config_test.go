@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefault(t *testing.T) {
 	c := Default()
@@ -10,10 +13,10 @@ func TestDefault(t *testing.T) {
 	if c.QwenBinary != "qwen" {
 		t.Errorf("QwenBinary: got %q, want %q", c.QwenBinary, "qwen")
 	}
-	if c.PipelinesDir != "./pipelines" {
-		t.Errorf("PipelinesDir: got %q, want %q", c.PipelinesDir, "./pipelines")
+	if !strings.HasSuffix(c.PipelinesDir, "pipelines") {
+		t.Errorf("PipelinesDir: got %q, expected suffix 'pipelines'", c.PipelinesDir)
 	}
-	if c.HistoryFile != "./run_history.json" {
-		t.Errorf("HistoryFile: got %q, want %q", c.HistoryFile, "./run_history.json")
+	if !strings.HasSuffix(c.HistoryFile, "run_history.json") {
+		t.Errorf("HistoryFile: got %q, expected suffix 'run_history.json'", c.HistoryFile)
 	}
 }

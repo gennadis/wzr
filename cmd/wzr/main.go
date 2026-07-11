@@ -21,11 +21,12 @@ import (
 )
 
 func main() {
+	defaults := config.Default()
 	var (
-		port         = flag.String("port", "8080", "HTTP listen port")
-		qwenBinary   = flag.String("qwen", "qwen", "path to qwen CLI binary")
-		pipelinesDir = flag.String("pipelines", "./pipelines", "directory for pipeline YAML files")
-		historyFile  = flag.String("history", "./run_history.json", "path to run history JSON file")
+		port         = flag.String("port", defaults.Port, "HTTP listen port")
+		qwenBinary   = flag.String("qwen", defaults.QwenBinary, "path to qwen CLI binary")
+		pipelinesDir = flag.String("pipelines", defaults.PipelinesDir, "directory for pipeline YAML files")
+		historyFile  = flag.String("history", defaults.HistoryFile, "path to run history JSON file")
 		dryRun       = flag.String("dry-run", "", "parse named pipeline, print struct, and exit")
 	)
 	flag.Parse()
@@ -52,7 +53,7 @@ func main() {
 	}
 
 	if err := os.MkdirAll(cfg.PipelinesDir, 0o750); err != nil {
-		log.Fatalf("create pipelines dir: %v", err)
+		log.Fatalf("create pipelines dir %s: %v", cfg.PipelinesDir, err)
 	}
 
 	staticFS, err := fs.Sub(assets.WebStaticFS, "web/static")

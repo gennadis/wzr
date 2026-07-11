@@ -1,0 +1,4 @@
+/wzr
+run_history.json
+pipelines/*.yaml
+!pipelines/release-manager.yaml
