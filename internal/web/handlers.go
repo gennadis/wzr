@@ -315,11 +315,41 @@ func (s *Server) handleCreatorGenerate(w http.ResponseWriter, r *http.Request) {
 		"Generate a WZR pipeline YAML for: %q\n\n"+
 			"Available skills: %s\n"+
 			"Available MCP servers: bitbucket, jira, jenkins, confluence, postgres\n\n"+
-			"YAML format:\nname: pipeline-name\nversion: \"1.0\"\ndescription: ...\nmanual_minutes: N\n"+
-			"params:\n  key: \"\"\nsteps:\n  - id: step-id\n    name: Step name\n    type: skill|mcp|approval\n"+
-			"    skill: skill-name  # if type=skill\n    server: server  # if type=mcp\n"+
-			"    tool: tool  # if type=mcp\n    params: {}\n    timeout_minutes: 30  # only for approval\n\n"+
-			"Respond with ONLY the YAML, no explanation.",
+			"STRICT RULES — violating any rule makes the pipeline unparseable:\n"+
+			"1. Every value under 'params:' (both top-level and per-step) MUST be a flat string. NEVER use nested maps or lists.\n"+
+			"   WRONG:  parameters:\\n    VERSION: \"1.0\"   ← nested map, forbidden\n"+
+			"   RIGHT:  parameters: \"VERSION=1.0\"        ← flat string, correct\n"+
+			"2. Parameter references use {{ .param_name }} syntax (with spaces, lowercase dot).\n"+
+			"   WRONG:  {{.Params.version}}  or  {{.release_version}}\n"+
+			"   RIGHT:  {{ .version }}\n"+
+			"3. timeout_minutes is only valid on steps with type: approval.\n\n"+
+			"YAML format (follow exactly):\n"+
+			"name: pipeline-name\n"+
+			"version: \"1.0\"\n"+
+			"description: one line description\n"+
+			"manual_minutes: N\n"+
+			"params:\n"+
+			"  param_name: \"\"\n"+
+			"steps:\n"+
+			"  - id: kebab-step-id\n"+
+			"    name: Human readable name\n"+
+			"    type: skill\n"+
+			"    skill: skill-name\n"+
+			"    params:\n"+
+			"      key: \"{{ .param_name }}\"\n"+
+			"  - id: mcp-step\n"+
+			"    name: MCP step\n"+
+			"    type: mcp\n"+
+			"    server: bitbucket\n"+
+			"    tool: list_pull_requests\n"+
+			"    params:\n"+
+			"      repo: \"{{ .param_name }}\"\n"+
+			"      state: MERGED\n"+
+			"  - id: approval-step\n"+
+			"    name: Human approval\n"+
+			"    type: approval\n"+
+			"    timeout_minutes: 30\n\n"+
+			"Respond with ONLY the YAML. No markdown fences. No explanation.",
 		body.Description, skillList,
 	)
 
