@@ -361,21 +361,56 @@
       ).join('');
     }
 
+    // Strip ```yaml ... ``` or ``` ... ``` fences that the model sometimes adds.
+    function stripCodeFences(text) {
+      let s = text.trim();
+      s = s.replace(/^```[a-zA-Z]*\n/, '');
+      s = s.replace(/\n```\s*$/, '');
+      return s.trim();
+    }
+
+    // Lightweight YAML syntax highlighter — returns safe HTML.
+    function highlightYAML(raw) {
+      function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+      return raw.split('\n').map(line => {
+        // Comment
+        if (/^\s*#/.test(line)) return `<span style="color:#6e7681;font-style:italic">${esc(line)}</span>`;
+        // key: value (handles "  - key: val" too)
+        const km = line.match(/^(\s*(?:-\s+)?)([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:.*)$/);
+        if (km) {
+          const lead = esc(km[1]);
+          const key  = esc(km[2]);
+          let rest   = esc(km[3]);
+          // Template expressions {{ .x }}
+          rest = rest.replace(/(\{\{[^}]+\}\})/g, '<span style="color:#e08855">$1</span>');
+          // Quoted string content
+          rest = rest.replace(/"([^"]*)"/g, '"<span style="color:#a5d6a7">$1</span>"');
+          // Bare numbers
+          rest = rest.replace(/^(:\s*)(\d+)(\s*)$/, '$1<span style="color:#f8c471">$2</span>$3');
+          // Bare booleans / null
+          rest = rest.replace(/^(:\s*)(true|false|null)(\s*)$/, '$1<span style="color:#f8c471">$2</span>$3');
+          return `${lead}<span style="color:#79c0ff">${key}</span>${rest}`;
+        }
+        return esc(line);
+      }).join('\n');
+    }
+
     // --- Describe & Generate ---
     async function generatePipeline() {
       const desc = document.getElementById('gen-description').value.trim();
       if (!desc) { alert('Please describe your pipeline.'); return; }
       const status = document.getElementById('gen-status');
       status.textContent = 'Generating…';
-      document.getElementById('yaml-output').textContent = '';
+      document.getElementById('yaml-output').innerHTML = '';
       try {
         const res = await fetch('/api/creator/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ description: desc }),
         });
-        generatedYAML = await res.text();
-        document.getElementById('yaml-output').textContent = generatedYAML;
+        const raw = await res.text();
+        generatedYAML = stripCodeFences(raw);
+        document.getElementById('yaml-output').innerHTML = highlightYAML(generatedYAML);
         status.textContent = 'Done.';
       } catch (err) {
         status.textContent = 'Error: ' + err.message;
