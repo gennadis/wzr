@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -87,5 +89,35 @@ func TestStore_ListEmptyDir(t *testing.T) {
 	}
 	if len(names) != 0 {
 		t.Errorf("expected empty list, got %v", names)
+	}
+}
+
+func TestReleaseManagerPipeline(t *testing.T) {
+	// Load the embedded example pipeline from the repo root pipelines/ dir.
+	data, err := os.ReadFile(filepath.Join("..", "..", "pipelines", "release-manager.yaml"))
+	if err != nil {
+		t.Skipf("release-manager.yaml not found: %v", err)
+	}
+	p, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if p.Name != "release-manager" {
+		t.Errorf("Name: got %q", p.Name)
+	}
+	if len(p.Steps) != 6 {
+		t.Errorf("Steps: got %d, want 6", len(p.Steps))
+	}
+	if p.ManualMinutes != 100 {
+		t.Errorf("ManualMinutes: got %d, want 100", p.ManualMinutes)
+	}
+	// Verify params substitution
+	sub := SubstituteParams(p, map[string]string{"project": "MYAPP", "version": "2.0"})
+	step := sub.Steps[0]
+	if step.Params["project"] != "MYAPP" {
+		t.Errorf("substituted project param: got %q", step.Params["project"])
+	}
+	if step.Params["version"] != "2.0" {
+		t.Errorf("substituted version param: got %q", step.Params["version"])
 	}
 }
