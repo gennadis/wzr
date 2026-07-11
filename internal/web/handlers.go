@@ -278,7 +278,11 @@ func (s *Server) handleCreatorMessage(w http.ResponseWriter, r *http.Request) {
 		body.Message, skillList, stepsJSON,
 	)
 
-	answer := s.runQwenCollect(r, prompt)
+	answer, err := s.runQwenCollect(r, prompt)
+	if err != nil {
+		jsonErr(w, http.StatusInternalServerError, "qwen error: "+err.Error())
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = fmt.Fprint(w, answer)
 }
@@ -306,7 +310,11 @@ func (s *Server) handleCreatorGenerate(w http.ResponseWriter, r *http.Request) {
 		body.Description, skillList,
 	)
 
-	yaml := s.runQwenCollect(r, prompt)
+	yaml, err := s.runQwenCollect(r, prompt)
+	if err != nil {
+		jsonErr(w, http.StatusInternalServerError, "qwen error: "+err.Error())
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = fmt.Fprint(w, yaml)
 }
@@ -336,7 +344,7 @@ func (s *Server) buildSkillList() string {
 	return strings.Join(names, ", ")
 }
 
-func (s *Server) runQwenCollect(r *http.Request, prompt string) string {
+func (s *Server) runQwenCollect(r *http.Request, prompt string) (string, error) {
 	outputCh := make(chan string, 128)
 	errCh := make(chan error, 1)
 	go func() {
@@ -348,7 +356,7 @@ func (s *Server) runQwenCollect(r *http.Request, prompt string) string {
 		lines = append(lines, line)
 	}
 	if err := <-errCh; err != nil {
-		return ""
+		return strings.Join(lines, "\n"), err
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), nil
 }

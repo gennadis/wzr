@@ -25,9 +25,8 @@ func NewClient(binaryPath string) *Client {
 // and returns an error on non-zero exit.
 func (c *Client) Run(ctx context.Context, prompt string, outputCh chan<- string) error {
 	cmd := exec.CommandContext(ctx, c.BinaryPath,
-		"--approve-mode", "auto",
-		"--allowed-tools", "run_sh_command",
-		"--message", prompt,
+		"-p", prompt,
+		"--output-format", "text",
 	)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
