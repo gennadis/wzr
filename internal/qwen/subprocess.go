@@ -27,6 +27,8 @@ func (c *Client) Run(ctx context.Context, prompt string, outputCh chan<- string)
 	cmd := exec.CommandContext(ctx, c.BinaryPath,
 		"-p", prompt,
 		"--output-format", "text",
+		"--approval-mode", "auto-edit",
+		"--allowed-tools", "run_shell_command",
 	)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
