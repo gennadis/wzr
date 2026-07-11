@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WZR — Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    /* Stats bar */
+    .stats-bar { display: flex; gap: 2rem; padding: 0.75rem 1.25rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin: 1rem 0; font-size: 0.875rem; align-items: center; }
+    .stat { display: flex; flex-direction: column; }
+    .stat-val { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+    .stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    /* Pipeline cards grid */
+    .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .pipeline-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .pipeline-card h3 { margin: 0; font-size: 0.95rem; }
+    .pipeline-card .meta { font-size: 0.75rem; color: var(--muted); }
+    .pipeline-card .actions { margin-top: auto; padding-top: 0.75rem; }
+
+    /* Run panel */
+    #run-panel { display: none; margin-top: 1.5rem; }
+    #run-panel.visible { display: block; }
+    .run-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .run-header h3 { margin: 0; font-size: 1rem; }
+    .run-layout { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; }
+
+    /* Step list */
+    .step-list { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .step-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    .step-row:last-child { border-bottom: none; }
+    .step-row .step-name { flex: 1; font-size: 0.875rem; }
+    .step-row .step-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* Badges */
+    .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+    .badge-running { background: #1a3a5c; color: #5ba3dc; }
+    .badge-success { background: #0d2e1a; color: #4caf7d; }
+    .badge-failed  { background: #2e0d0d; color: #e05555; }
+    .badge-pending { background: #1a1a2e; color: var(--muted); }
+    .badge-approval { background: #2e2a0d; color: #e0c055; }
+    .badge-repair   { background: #2e1a0d; color: #e08855; }
+    .badge-postmortem { background: #1a0d2e; color: #a855e0; }
+
+    /* Repair card */
+    .repair-card { margin-top: 0.5rem; background: #1c1300; border: 1px solid #e08855; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem; }
+    .repair-card .diagnosis { color: #e08855; margin-bottom: 0.4rem; }
+    .repair-card .fix-cmd { font-family: monospace; background: #0a0805; padding: 0.35rem 0.6rem; border-radius: 4px; color: #c8e8a0; font-size: 0.75rem; white-space: pre-wrap; margin-bottom: 0.5rem; }
+
+    /* Postmortem */
+    .postmortem-panel { margin-top: 0.5rem; background: #0e0a1a; border: 1px solid #a855e0; border-radius: 6px; padding: 0.75rem; font-size: 0.8rem; color: #ccc; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+
+    /* Narration sidebar */
+    .narration-sidebar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+    .narration-sidebar h4 { margin: 0; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); border-bottom: 1px solid var(--border); }
+    .narration-log { flex: 1; overflow-y: auto; padding: 0.75rem 1rem; font-size: 0.75rem; color: var(--muted); font-family: monospace; line-height: 1.6; max-height: 480px; }
+    .narration-line { color: #8dd; margin-bottom: 0.15rem; }
+    .narration-line.system { color: var(--muted); font-style: italic; }
+
+    /* Success banner */
+    .success-banner { background: #0d2e1a; border: 1px solid #4caf7d; border-radius: 8px; padding: 0.85rem 1.25rem; font-size: 0.9rem; color: #4caf7d; margin-bottom: 1rem; display: none; }
+    .success-banner.visible { display: block; }
+    .failed-banner { background: #2e0d0d; border: 1px solid #e05555; border-radius: 8px; padding: 0.85rem 1.25rem; font-size: 0.9rem; color: #e05555; margin-bottom: 1rem; display: none; }
+    .failed-banner.visible { display: block; }
+
+    /* Post-run chat */
+    .post-run-chat { margin-top: 1rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: none; }
+    .post-run-chat.visible { display: block; }
+    .post-run-chat h4 { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .chat-bubbles { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; max-height: 240px; overflow-y: auto; }
+    .bubble { padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.825rem; }
+    .bubble.user { background: #1a2a4a; align-self: flex-end; }
+    .bubble.ai { background: var(--border); align-self: flex-start; white-space: pre-wrap; }
+    .chat-input-row { display: flex; gap: 0.5rem; }
+    .chat-input-row input { flex: 1; }
+
+    /* Params modal */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; align-items: center; justify-content: center; }
+    .modal-backdrop.visible { display: flex; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; min-width: 340px; max-width: 480px; width: 100%; }
+    .modal h3 { margin: 0 0 1rem; font-size: 1rem; }
+    .param-row { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .param-row label { font-size: 0.8rem; color: var(--muted); }
+    .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="/" class="nav-brand">WZR</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/creator">Creator</a>
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/templates">Templates</a>
+    </div>
+  </nav>
+
+  <main style="max-width:1200px;margin:0 auto;padding:0 1.5rem 2rem;">
+
+    <!-- Stats bar -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat"><span class="stat-val" id="stat-runs">—</span><span class="stat-label">Runs</span></div>
+      <div class="stat"><span class="stat-val" id="stat-saved">—</span><span class="stat-label">Hours Saved</span></div>
+      <div class="stat"><span class="stat-val" id="stat-success">—</span><span class="stat-label">Success Rate</span></div>
+      <div style="margin-left:auto;"><button onclick="loadAll()" style="font-size:0.75rem">Refresh</button></div>
+    </div>
+
+    <!-- Pipeline list -->
+    <h3 style="margin:1rem 0 0.75rem;">Your Pipelines</h3>
+    <div class="pipeline-grid" id="pipeline-grid">
+      <div style="color:var(--muted);font-size:0.875rem">Loading pipelines…</div>
+    </div>
+
+    <!-- Run panel -->
+    <div id="run-panel">
+      <div class="run-header">
+        <h3 id="run-title">Run: —</h3>
+        <span id="run-id-label" style="font-size:0.75rem;color:var(--muted)"></span>
+      </div>
+      <div class="success-banner" id="success-banner"></div>
+      <div class="failed-banner" id="failed-banner"></div>
+      <div class="run-layout">
+        <div>
+          <div class="step-list" id="step-list"></div>
+        </div>
+        <div class="narration-sidebar">
+          <h4>Live Narration</h4>
+          <div class="narration-log" id="narration-log"></div>
+        </div>
+      </div>
+      <!-- Post-run chat -->
+      <div class="post-run-chat" id="post-run-chat">
+        <h4>Post-run Chat</h4>
+        <div class="chat-bubbles" id="chat-bubbles"></div>
+        <div class="chat-input-row">
+          <input id="chat-question" type="text" placeholder="Ask about this run…">
+          <button onclick="sendRunChat()">Ask</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Params modal -->
+  <div class="modal-backdrop" id="params-modal">
+    <div class="modal">
+      <h3 id="modal-title">Run pipeline</h3>
+      <div id="modal-params"></div>
+      <div class="modal-actions">
+        <button onclick="closeModal()" style="background:var(--border);color:var(--text)">Cancel</button>
+        <button onclick="confirmRun()">Run</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentRunID = null;
+    let currentPipelineName = null;
+    let pendingPipelineName = null;
+    let eventSource = null;
+    let stepMap = {}; // stepID -> DOM element
+
+    // --- Init ---
+    async function loadAll() {
+      await Promise.all([loadStats(), loadPipelines()]);
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const d = await res.json();
+        document.getElementById('stat-runs').textContent = d.runs ?? 0;
+        const hours = ((d.total_saved_minutes ?? 0) / 60).toFixed(1);
+        document.getElementById('stat-saved').textContent = hours + 'h';
+        const pct = Math.round((d.success_rate ?? 0) * 100);
+        document.getElementById('stat-success').textContent = pct + '%';
+      } catch (_) {}
+    }
+
+    async function loadPipelines() {
+      const grid = document.getElementById('pipeline-grid');
+      try {
+        const res = await fetch('/api/pipelines');
+        const names = await res.json();
+        if (!names || names.length === 0) {
+          grid.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">No pipelines saved yet. <a href="/creator">Create one</a>.</div>';
+          return;
+        }
+        grid.innerHTML = '';
+        for (const name of names) {
+          let p = null;
+          try {
+            const pr = await fetch('/api/pipelines/' + encodeURIComponent(name));
+            p = await pr.json();
+          } catch (_) {}
+          const card = document.createElement('div');
+          card.className = 'pipeline-card';
+          const steps = p ? p.steps?.length ?? 0 : '?';
+          const mins = p ? p.manual_minutes ?? 0 : 0;
+          card.innerHTML = `
+            <h3>${name}</h3>
+            <div class="meta">${steps} step${steps !== 1 ? 's' : ''}${mins ? ' · ' + mins + ' min saved' : ''}</div>
+            ${p && p.description ? `<div style="font-size:0.8rem;color:var(--muted)">${p.description}</div>` : ''}
+            <div class="actions">
+              <button onclick="openRunModal('${name}')">Run</button>
+            </div>
+          `;
+          grid.appendChild(card);
+        }
+      } catch (err) {
+        grid.innerHTML = '<div style="color:#e05555">Error loading pipelines: ' + err.message + '</div>';
+      }
+    }
+
+    // --- Params modal ---
+    let pendingParams = {};
+    let pendingParamKeys = [];
+
+    async function openRunModal(name) {
+      pendingPipelineName = name;
+      pendingParams = {};
+      pendingParamKeys = [];
+
+      let p = null;
+      try {
+        const res = await fetch('/api/pipelines/' + encodeURIComponent(name));
+        p = await res.json();
+      } catch (_) {}
+
+      document.getElementById('modal-title').textContent = 'Run: ' + name;
+      const paramEl = document.getElementById('modal-params');
+      paramEl.innerHTML = '';
+
+      if (p && p.params && Object.keys(p.params).length > 0) {
+        pendingParamKeys = Object.keys(p.params);
+        for (const key of pendingParamKeys) {
+          const row = document.createElement('div');
+          row.className = 'param-row';
+          row.innerHTML = `<label>${key}</label><input id="param-${key}" type="text" placeholder="${p.params[key] || key}">`;
+          paramEl.appendChild(row);
+        }
+      } else {
+        paramEl.innerHTML = '<p style="font-size:0.85rem;color:var(--muted);margin:0">No parameters required.</p>';
+      }
+      document.getElementById('params-modal').classList.add('visible');
+    }
+
+    function closeModal() {
+      document.getElementById('params-modal').classList.remove('visible');
+    }
+
+    async function confirmRun() {
+      closeModal();
+      const params = {};
+      for (const key of pendingParamKeys) {
+        params[key] = document.getElementById('param-' + key)?.value ?? '';
+      }
+      await startRun(pendingPipelineName, params);
+    }
+
+    // --- Run execution ---
+    async function startRun(name, params) {
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      currentPipelineName = name;
+      stepMap = {};
+
+      // Reset UI
+      document.getElementById('run-panel').classList.add('visible');
+      document.getElementById('run-title').textContent = 'Run: ' + name;
+      document.getElementById('success-banner').classList.remove('visible');
+      document.getElementById('failed-banner').classList.remove('visible');
+      document.getElementById('step-list').innerHTML = '<div style="padding:1rem;color:var(--muted);font-size:0.85rem">Starting…</div>';
+      document.getElementById('narration-log').innerHTML = '';
+      document.getElementById('post-run-chat').classList.remove('visible');
+      document.getElementById('chat-bubbles').innerHTML = '';
+
+      document.getElementById('run-panel').scrollIntoView({ behavior: 'smooth' });
+
+      try {
+        const res = await fetch('/api/pipelines/' + encodeURIComponent(name) + '/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ params }),
+        });
+        const d = await res.json();
+        currentRunID = d.run_id;
+        document.getElementById('run-id-label').textContent = 'run_id: ' + currentRunID;
+        subscribeToEvents(currentRunID);
+      } catch (err) {
+        document.getElementById('step-list').innerHTML = '<div style="padding:1rem;color:#e05555">Error starting run: ' + err.message + '</div>';
+      }
+    }
+
+    function subscribeToEvents(runID) {
+      eventSource = new EventSource('/api/runs/' + runID + '/events');
+      eventSource.onmessage = (e) => {
+        try { handleEvent(JSON.parse(e.data)); } catch (_) {}
+      };
+      eventSource.onerror = () => {
+        eventSource.close();
+      };
+    }
+
+    function handleEvent(ev) {
+      switch (ev.status) {
+        case 'running':
+          ensureStepRow(ev);
+          setStepBadge(ev.step_id, 'running', 'Running');
+          break;
+        case 'success':
+          if (ev.step_id) {
+            setStepBadge(ev.step_id, 'success', 'Done');
+          } else {
+            // Pipeline-level success
+            showSuccessBanner(ev.output);
+            document.getElementById('post-run-chat').classList.add('visible');
+            eventSource && eventSource.close();
+          }
+          break;
+        case 'failed':
+          if (ev.step_id) {
+            setStepBadge(ev.step_id, 'failed', 'Failed');
+            if (ev.error) appendNarration('[error] ' + ev.error, true);
+          } else {
+            showFailedBanner('Pipeline failed.');
+            document.getElementById('post-run-chat').classList.add('visible');
+            eventSource && eventSource.close();
+          }
+          break;
+        case 'awaiting_approval':
+          ensureStepRow(ev);
+          setStepBadge(ev.step_id, 'approval', 'Waiting');
+          showApprovalButtons(ev.step_id);
+          break;
+        case 'narration':
+          appendNarration(ev.output, false);
+          break;
+        case 'repair_suggested':
+          setStepBadge(ev.step_id, 'repair', 'Repair');
+          showRepairCard(ev.step_id, ev.diagnosis, ev.fix_command);
+          break;
+        case 'postmortem':
+          setStepBadge(ev.step_id, 'postmortem', 'Postmortem');
+          showPostmortem(ev.step_id, ev.output);
+          showFailedBanner('Pipeline failed. See post-mortem below.');
+          document.getElementById('post-run-chat').classList.add('visible');
+          eventSource && eventSource.close();
+          break;
+      }
+    }
+
+    function ensureStepRow(ev) {
+      if (stepMap[ev.step_id]) return;
+      const list = document.getElementById('step-list');
+      // Remove placeholder
+      const placeholder = list.querySelector('.placeholder');
+      if (placeholder) placeholder.remove();
+
+      const row = document.createElement('div');
+      row.className = 'step-row';
+      row.id = 'step-' + ev.step_id;
+      row.innerHTML = `
+        <div class="step-name">${ev.step_name || ev.step_id}</div>
+        <span class="badge badge-pending" id="badge-${ev.step_id}">Pending</span>
+        <div class="step-actions" id="actions-${ev.step_id}"></div>
+      `;
+      list.appendChild(row);
+      stepMap[ev.step_id] = row;
+    }
+
+    function setStepBadge(stepID, cls, label) {
+      const badge = document.getElementById('badge-' + stepID);
+      if (!badge) return;
+      badge.className = 'badge badge-' + cls;
+      badge.textContent = label;
+    }
+
+    function showApprovalButtons(stepID) {
+      const actions = document.getElementById('actions-' + stepID);
+      if (!actions) return;
+      actions.innerHTML = `
+        <button onclick="respondApproval('${stepID}', true)" style="background:#0d2e1a;color:#4caf7d;border-color:#4caf7d">Approve</button>
+        <button onclick="respondApproval('${stepID}', false)" style="background:#2e0d0d;color:#e05555;border-color:#e05555">Reject</button>
+      `;
+    }
+
+    function showRepairCard(stepID, diagnosis, fixCmd) {
+      const row = document.getElementById('step-' + stepID);
+      if (!row) return;
+      const card = document.createElement('div');
+      card.className = 'repair-card';
+      card.innerHTML = `
+        <div class="diagnosis">${diagnosis || 'AI diagnosed the failure.'}</div>
+        <div class="fix-cmd">${fixCmd || ''}</div>
+        <div style="display:flex;gap:0.4rem">
+          <button onclick="respondApproval('${stepID}:repair', true)" style="background:#2e1a0d;color:#e08855;border-color:#e08855;font-size:0.75rem">Apply &amp; Retry</button>
+          <button onclick="respondApproval('${stepID}:repair', false)" style="background:var(--border);color:var(--muted);font-size:0.75rem">Give Up</button>
+        </div>
+      `;
+      row.appendChild(card);
+    }
+
+    function showPostmortem(stepID, text) {
+      const row = document.getElementById('step-' + stepID);
+      if (!row) return;
+      let panel = row.querySelector('.postmortem-panel');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.className = 'postmortem-panel';
+        row.appendChild(panel);
+      }
+      panel.textContent = text || '';
+    }
+
+    function appendNarration(text, isSystem) {
+      if (!text) return;
+      const log = document.getElementById('narration-log');
+      const line = document.createElement('div');
+      line.className = 'narration-line' + (isSystem ? ' system' : '');
+      line.textContent = text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function showSuccessBanner(msg) {
+      const el = document.getElementById('success-banner');
+      el.textContent = msg || 'Pipeline completed successfully!';
+      el.classList.add('visible');
+    }
+
+    function showFailedBanner(msg) {
+      const el = document.getElementById('failed-banner');
+      el.textContent = msg || 'Pipeline failed.';
+      el.classList.add('visible');
+    }
+
+    async function respondApproval(stepID, approved) {
+      // Disable buttons
+      const actions = document.getElementById('actions-' + stepID.split(':')[0]);
+      if (actions) actions.innerHTML = '';
+
+      const runID = currentRunID;
+      const parts = stepID.split(':');
+      const apiStep = parts[0] + (parts[1] === 'repair' ? ':repair' : '');
+
+      try {
+        await fetch('/api/runs/' + runID + '/steps/' + encodeURIComponent(stepID) + '/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved }),
+        });
+      } catch (err) {
+        appendNarration('[error] approval send failed: ' + err.message, true);
+      }
+    }
+
+    // --- Post-run chat ---
+    async function sendRunChat() {
+      const input = document.getElementById('chat-question');
+      const q = input.value.trim();
+      if (!q || !currentRunID) return;
+      input.value = '';
+
+      const bubbles = document.getElementById('chat-bubbles');
+      const userBubble = document.createElement('div');
+      userBubble.className = 'bubble user';
+      userBubble.textContent = q;
+      bubbles.appendChild(userBubble);
+
+      try {
+        const res = await fetch('/api/runs/' + currentRunID + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q }),
+        });
+        const d = await res.json();
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'bubble ai';
+        aiBubble.textContent = d.answer || '(no answer)';
+        bubbles.appendChild(aiBubble);
+        bubbles.scrollTop = bubbles.scrollHeight;
+      } catch (err) {
+        const errBubble = document.createElement('div');
+        errBubble.className = 'bubble ai';
+        errBubble.textContent = 'Error: ' + err.message;
+        bubbles.appendChild(errBubble);
+      }
+    }
+
+    // Allow Enter to send chat
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('chat-question').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendRunChat();
+      });
+      loadAll();
+    });
+  </script>
+</body>
+</html>
