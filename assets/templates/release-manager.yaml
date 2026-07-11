@@ -1,0 +1,51 @@
+name: release-manager
+version: "1.0"
+description: Automates the full release process — Jira readiness, PRs, Jenkins build, approval gate, Confluence update, ticket transition.
+manual_minutes: 100
+params:
+  project: ""
+  version: ""
+steps:
+  - id: check-readiness
+    name: Check Jira tickets readiness
+    type: skill
+    skill: check-release-readiness
+    params:
+      project: "{{ .project }}"
+      version: "{{ .version }}"
+  - id: verify-prs
+    name: Verify Bitbucket PRs merged
+    type: mcp
+    server: bitbucket
+    tool: list_pull_requests
+    params:
+      state: open
+  - id: trigger-build
+    name: Trigger Jenkins build
+    type: mcp
+    server: jenkins
+    tool: trigger_build
+    params:
+      job: "release/{{ .project }}"
+    depends_on: verify-prs
+  - id: confirm-deploy
+    name: Confirm deployment to staging
+    type: approval
+    timeout_minutes: 30
+  - id: update-docs
+    name: Update Confluence release notes
+    type: skill
+    skill: update-release-notes
+    params:
+      project: "{{ .project }}"
+      version: "{{ .version }}"
+      space: RELEASES
+  - id: close-tickets
+    name: Transition Jira tickets to Released
+    type: mcp
+    server: jira
+    tool: transition_issue
+    params:
+      target_status: Released
+on_failure:
+  notify: "Pipeline {{ .name }} failed at step {{ .failed_step }}: {{ .error }}"

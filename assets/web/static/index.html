@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WZR — WZR's Zen Runtime</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-brand">WZR <span>/ WZR's Zen Runtime</span></div>
+    <a class="nav-link active" href="/">Home</a>
+    <a class="nav-link" href="/creator">Creator</a>
+    <a class="nav-link" href="/dashboard">Dashboard</a>
+    <a class="nav-link" href="/templates">Templates</a>
+  </nav>
+
+  <div id="stats-bar" class="stats-bar" hx-get="/api/stats" hx-trigger="load" hx-swap="innerHTML">
+    <div class="stat"><div class="stat-value">—</div><div class="stat-label">Runs</div></div>
+    <div class="stat"><div class="stat-value">—</div><div class="stat-label">Hours Saved</div></div>
+    <div class="stat"><div class="stat-value">—</div><div class="stat-label">Success Rate</div></div>
+  </div>
+
+  <div class="container">
+    <div class="page-title">Welcome to WZR</div>
+
+    <div class="grid-3">
+      <a class="card" href="/creator" style="display:block;text-decoration:none;cursor:pointer;">
+        <div class="card-title">⚡ Pipeline Creator</div>
+        <div class="card-meta">Build pipelines step-by-step or describe them in plain language and let AI generate the YAML.</div>
+      </a>
+      <a class="card" href="/dashboard" style="display:block;text-decoration:none;cursor:pointer;">
+        <div class="card-title">🚀 Execution Dashboard</div>
+        <div class="card-meta">Run pipelines, watch live narration, approve gates, and trigger self-healing on failure.</div>
+      </a>
+      <a class="card" href="/templates" style="display:block;text-decoration:none;cursor:pointer;">
+        <div class="card-title">📋 Templates Gallery</div>
+        <div class="card-meta">Browse pre-built pipelines for common Sber dev workflows. Clone and customise in one click.</div>
+      </a>
+    </div>
+
+    <div class="card mt-16">
+      <div class="card-title">What is WZR?</div>
+      <div class="card-meta" style="margin-top:8px;line-height:1.8;">
+        WZR is an AI-powered pipeline orchestrator for Sber infrastructure teams.
+        It replaces ad-hoc manual release workflows with repeatable, shareable pipelines
+        driven autonomously by Qwen Code CLI — with human approval gates, self-healing on failure,
+        and live AI narration so you always know what's happening.
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/htmx.min.js"></script>
+</body>
+</html>

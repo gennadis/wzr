@@ -3,11 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"time"
 
+	"wzr/assets"
 	"wzr/internal/config"
+	"wzr/internal/pipeline"
+	"wzr/internal/web"
 )
 
 func main() {
@@ -28,27 +32,32 @@ func main() {
 	}
 
 	if *dryRun != "" {
-		// Pipeline parsing is implemented in Task 2.
-		// This flag is wired here so Task 12 can use it without touching main.go.
-		fmt.Printf("--dry-run: pipeline %q would be loaded from %s (parser not yet implemented)\n", *dryRun, cfg.PipelinesDir)
+		store := pipeline.NewStore(cfg.PipelinesDir)
+		p, err := store.Load(*dryRun)
+		if err != nil {
+			log.Fatalf("dry-run: %v", err)
+		}
+		fmt.Printf("Pipeline: %s (v%s)\n", p.Name, p.Version)
+		fmt.Printf("Steps: %d\n", len(p.Steps))
+		for _, s := range p.Steps {
+			fmt.Printf("  [%s] %s (%s)\n", s.Type, s.Name, s.ID)
+		}
 		return
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
-	})
+	staticFS, err := fs.Sub(assets.WebStaticFS, "web/static")
+	if err != nil {
+		log.Fatalf("sub web/static FS: %v", err)
+	}
 
-	addr := ":" + cfg.Port
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
+		Addr:         ":" + cfg.Port,
+		Handler:      web.NewServer(staticFS),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
-	log.Printf("WZR — WZR's Zen Runtime — listening on %s", addr)
+	log.Printf("WZR — WZR's Zen Runtime — listening on :%s", cfg.Port)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
