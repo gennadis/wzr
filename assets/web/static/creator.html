@@ -130,6 +130,7 @@
   <script>
     // State
     const steps = [];
+    const chatHistory = []; // [{role:"user"|"assistant", text:"..."}]
     let generatedYAML = '';
 
     // --- Tab switching ---
@@ -179,21 +180,30 @@
       input.value = '';
 
       appendChatMsg(msg, 'user');
+      chatHistory.push({ role: 'user', text: msg });
 
       try {
         const res = await fetch('/api/creator/message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg, steps }),
+          body: JSON.stringify({ message: msg, steps, history: chatHistory }),
         });
         const text = await res.text();
+
+        // Try to extract a JSON step from the response (may be embedded in prose)
         let step = null;
-        try { step = JSON.parse(text); } catch (_) { /* non-JSON response */ }
+        const jsonMatch = text.match(/\{[\s\S]*"id"[\s\S]*\}/);
+        if (jsonMatch) {
+          try { step = JSON.parse(jsonMatch[0]); } catch (_) { /* bad json */ }
+        }
 
         if (step && step.id) {
           appendStepSuggestion(step);
+          chatHistory.push({ role: 'assistant', text: '[suggested step: ' + step.name + ']' });
         } else {
-          appendChatMsg(text || '(no response)', 'ai');
+          const reply = text || '(no response)';
+          appendChatMsg(reply, 'ai');
+          chatHistory.push({ role: 'assistant', text: reply });
         }
       } catch (err) {
         appendChatMsg('Error calling AI: ' + err.message, 'ai');

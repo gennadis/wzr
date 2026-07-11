@@ -255,8 +255,9 @@ func (s *Server) handleCloneTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreatorMessage(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Message string `json:"message"`
-		Steps   []any  `json:"steps"`
+		Message string              `json:"message"`
+		Steps   []any               `json:"steps"`
+		History []map[string]string `json:"history"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Message == "" {
 		jsonErr(w, http.StatusBadRequest, "message required")
@@ -266,16 +267,26 @@ func (s *Server) handleCreatorMessage(w http.ResponseWriter, r *http.Request) {
 	skillList := s.buildSkillList()
 	stepsJSON, _ := json.Marshal(body.Steps)
 
+	var historyStr strings.Builder
+	for _, h := range body.History {
+		fmt.Fprintf(&historyStr, "%s: %s\n", h["role"], h["text"])
+	}
+
 	prompt := fmt.Sprintf(
-		"You are helping build a WZR pipeline. User request: %q\n\n"+
+		"You are a WZR pipeline builder assistant. Help the user build automation pipelines.\n\n"+
 			"Available skills: %s\n"+
 			"Available MCP servers: bitbucket (list_pull_requests, get_pr, merge_pr), "+
 			"jira (search_issues, transition_issue, get_issue), jenkins (trigger_build, get_build_status), "+
 			"confluence (get_page, create_page, update_page), postgres (query, list_tables)\n\n"+
-			"Steps added so far: %s\n\n"+
-			"Suggest the next pipeline step. Respond with ONLY JSON:\n"+
-			`{"id":"step-id","name":"Step name","type":"skill|mcp|approval","skill":"","server":"","tool":"","params":{}}`,
-		body.Message, skillList, stepsJSON,
+			"Steps added to pipeline so far: %s\n\n"+
+			"Conversation history:\n%s\n"+
+			"User: %s\n\n"+
+			"RESPONSE RULES:\n"+
+			"- If the user describes a specific automation step to add to the pipeline, respond with ONLY a JSON object (no other text):\n"+
+			`  {"id":"kebab-id","name":"Human name","type":"skill|mcp|approval","skill":"name-if-skill","server":"name-if-mcp","tool":"name-if-mcp","params":{}}`+"\n"+
+			"- Otherwise (greetings, questions, clarifications) respond with a short helpful plain-text message.\n"+
+			"- Never invent step types. Type must be one of: skill, mcp, approval.",
+		skillList, stepsJSON, historyStr.String(), body.Message,
 	)
 
 	answer, err := s.runQwenCollect(r, prompt)
@@ -283,7 +294,7 @@ func (s *Server) handleCreatorMessage(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, http.StatusInternalServerError, "qwen error: "+err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "text/plain")
 	_, _ = fmt.Fprint(w, answer)
 }
 
