@@ -128,6 +128,23 @@
   </main>
 
   <script>
+    // Extract the first well-formed JSON object from a string.
+    function extractFirstJSON(text) {
+      const start = text.indexOf('{');
+      if (start === -1) return null;
+      let depth = 0;
+      for (let i = start; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(text.slice(start, i + 1)); } catch (_) { return null; }
+          }
+        }
+      }
+      return null;
+    }
+
     // State
     const steps = [];
     const chatHistory = []; // [{role:"user"|"assistant", text:"..."}]
@@ -190,12 +207,8 @@
         });
         const text = await res.text();
 
-        // Try to extract a JSON step from the response (may be embedded in prose)
-        let step = null;
-        const jsonMatch = text.match(/\{[\s\S]*"id"[\s\S]*\}/);
-        if (jsonMatch) {
-          try { step = JSON.parse(jsonMatch[0]); } catch (_) { /* bad json */ }
-        }
+        // Extract the first complete JSON object from the response
+        const step = extractFirstJSON(text);
 
         if (step && step.id) {
           appendStepSuggestion(step);

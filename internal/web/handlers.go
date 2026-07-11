@@ -269,25 +269,27 @@ func (s *Server) handleCreatorMessage(w http.ResponseWriter, r *http.Request) {
 
 	var historyStr strings.Builder
 	for _, h := range body.History {
-		fmt.Fprintf(&historyStr, "%s: %s\n", h["role"], h["text"])
+		label := "Human"
+		if h["role"] == "assistant" {
+			label = "Assistant"
+		}
+		fmt.Fprintf(&historyStr, "[%s]: %s\n", label, h["text"])
 	}
 
-	prompt := fmt.Sprintf(
-		"You are a WZR pipeline builder assistant. Help the user build automation pipelines.\n\n"+
-			"Available skills: %s\n"+
-			"Available MCP servers: bitbucket (list_pull_requests, get_pr, merge_pr), "+
-			"jira (search_issues, transition_issue, get_issue), jenkins (trigger_build, get_build_status), "+
-			"confluence (get_page, create_page, update_page), postgres (query, list_tables)\n\n"+
-			"Steps added to pipeline so far: %s\n\n"+
-			"Conversation history:\n%s\n"+
-			"User: %s\n\n"+
-			"RESPONSE RULES:\n"+
-			"- If the user describes a specific automation step to add to the pipeline, respond with ONLY a JSON object (no other text):\n"+
-			`  {"id":"kebab-id","name":"Human name","type":"skill|mcp|approval","skill":"name-if-skill","server":"name-if-mcp","tool":"name-if-mcp","params":{}}`+"\n"+
-			"- Otherwise (greetings, questions, clarifications) respond with a short helpful plain-text message.\n"+
-			"- Never invent step types. Type must be one of: skill, mcp, approval.",
-		skillList, stepsJSON, historyStr.String(), body.Message,
-	)
+	prompt := "You are a WZR pipeline builder assistant.\n\n" +
+		"Available skills: " + skillList + "\n" +
+		"Available MCP servers: bitbucket (list_pull_requests, get_pr, merge_pr), " +
+		"jira (search_issues, transition_issue, get_issue), jenkins (trigger_build, get_build_status), " +
+		"confluence (get_page, create_page, update_page), postgres (query, list_tables)\n\n" +
+		"Steps added so far: " + string(stepsJSON) + "\n\n" +
+		"Chat so far:\n" + historyStr.String() + "\n" +
+		"Latest message from human: " + body.Message + "\n\n" +
+		"Reply rules (follow exactly):\n" +
+		"- If the message describes a pipeline step: output ONLY a single JSON object, no prose, no markdown fences:\n" +
+		`{"id":"kebab-id","name":"Step Name","type":"skill|mcp|approval","skill":"","server":"","tool":"","params":{}}` + "\n" +
+		"- If the message is conversational (greeting, question, unclear): reply with a short plain-text message.\n" +
+		"- Suggest exactly ONE step per reply. Never output more than one JSON object.\n" +
+		"- type must be exactly one of: skill, mcp, approval. No other values."
 
 	answer, err := s.runQwenCollect(r, prompt)
 	if err != nil {
