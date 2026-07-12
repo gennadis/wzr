@@ -16,7 +16,7 @@ Pipeline orchestrator for Sber internal infrastructure. Single Go binary — bac
 go build -o wzr ./cmd/wzr
 ```
 
-Requires Go 1.22+. No other dependencies needed at build time.
+Requires Go 1.25.1+. No other dependencies needed at build time.
 
 ## Run
 
