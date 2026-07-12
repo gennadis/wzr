@@ -48,7 +48,7 @@ Open [http://localhost:8080](http://localhost:8080).
 
 ## Execution engine
 
-WZR ships two `CLIExecutor` presets. Use `--qwen` to point at the binary if it is not on `$PATH`.
+WZR ships two `CLIExecutor` presets (in `internal/executor`). Make sure the binary is on `$PATH`.
 
 | Preset | Binary | Model |
 |--------|--------|-------|
