@@ -15,10 +15,10 @@
     <a class="nav-link" href="/templates">Templates</a>
   </nav>
 
-  <div id="stats-bar" class="stats-bar" hx-get="/api/stats" hx-trigger="load" hx-swap="innerHTML">
-    <div class="stat"><div class="stat-value">—</div><div class="stat-label">Runs</div></div>
-    <div class="stat"><div class="stat-value">—</div><div class="stat-label">Hours Saved</div></div>
-    <div class="stat"><div class="stat-value">—</div><div class="stat-label">Success Rate</div></div>
+  <div id="stats-bar" class="stats-bar">
+    <div class="stat"><div class="stat-value" id="stat-runs">—</div><div class="stat-label">Runs</div></div>
+    <div class="stat"><div class="stat-value" id="stat-hours">—</div><div class="stat-label">Hours Saved</div></div>
+    <div class="stat"><div class="stat-value" id="stat-rate">—</div><div class="stat-label">Success Rate</div></div>
   </div>
 
   <div class="container">
@@ -50,6 +50,21 @@
     </div>
   </div>
 
-  <script src="/static/htmx.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      fetch('/api/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          document.getElementById('stat-runs').textContent = data.total_runs !== undefined ? data.total_runs : '—';
+          var hours = data.hours_saved !== undefined ? data.hours_saved : null;
+          document.getElementById('stat-hours').textContent = hours !== null ? hours.toFixed(1) + 'h' : '—';
+          var rate = data.success_rate !== undefined ? data.success_rate : null;
+          document.getElementById('stat-rate').textContent = rate !== null ? Math.round(rate) + '%' : '—';
+        })
+        .catch(function() {
+          // leave placeholders as-is on error
+        });
+    });
+  </script>
 </body>
 </html>

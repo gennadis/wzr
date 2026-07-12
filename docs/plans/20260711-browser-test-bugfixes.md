@@ -60,12 +60,12 @@ and cause all SSE events to be lost when the client subscribes slightly after th
 **Files:**
 - Modify: `assets/web/static/index.html`
 
-- [ ] remove `hx-get`, `hx-trigger`, `hx-swap` attributes from `<div id="stats-bar">` in `index.html`
-- [ ] add `id` attributes to the three `.stat-value` divs: `id="stat-runs"`, `id="stat-hours"`, `id="stat-rate"`
-- [ ] add an inline `<script>` block (before `</body>`) that fetches `/api/stats` on `DOMContentLoaded` and populates the three stat value elements; format hours as `X.Xh`, rate as `X%`
-- [ ] remove `<script src="/static/htmx.min.js"></script>` from `index.html` (no longer used after this fix)
-- [ ] run `go build ./...` to confirm the embedded asset compiles cleanly
-- [ ] verify by reading the file that no `hx-` attributes remain and the script is present
+- [x] remove `hx-get`, `hx-trigger`, `hx-swap` attributes from `<div id="stats-bar">` in `index.html`
+- [x] add `id` attributes to the three `.stat-value` divs: `id="stat-runs"`, `id="stat-hours"`, `id="stat-rate"`
+- [x] add an inline `<script>` block (before `</body>`) that fetches `/api/stats` on `DOMContentLoaded` and populates the three stat value elements; format hours as `X.Xh`, rate as `X%`
+- [x] remove `<script src="/static/htmx.min.js"></script>` from `index.html` (no longer used after this fix)
+- [x] run `go build ./...` to confirm the embedded asset compiles cleanly
+- [x] verify by reading the file that no `hx-` attributes remain and the script is present
 
 ### Task 2: Fix Creator "Add to pipeline" onclick (Bug 2 — single-quote truncation)
 
