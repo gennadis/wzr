@@ -1,4 +1,4 @@
-package qwen
+package executor
 
 import (
 	"bufio"

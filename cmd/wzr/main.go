@@ -14,7 +14,7 @@ import (
 	"wzr/internal/mcp"
 	"wzr/internal/notify"
 	"wzr/internal/pipeline"
-	"wzr/internal/qwen"
+	"wzr/internal/executor"
 	"wzr/internal/runner"
 	"wzr/internal/skills"
 	"wzr/internal/web"
@@ -76,13 +76,13 @@ func main() {
 	approvalHub := runner.NewApprovalHub()
 	roiTracker := runner.NewROITracker(cfg.HistoryFile)
 	runStore := runner.NewRunStore()
-	executor := qwen.NewQwen()
+	cliExec := executor.NewQwen()
 	if cfg.UseGigacode {
-		executor = qwen.NewGigacode()
+		cliExec = executor.NewGigacode()
 	}
 	notifier := notify.NewSSENotifier(sseHub)
 
-	r := runner.NewRunner(skillReg, executor, notifier, approvalHub, roiTracker, runStore)
+	r := runner.NewRunner(skillReg, cliExec, notifier, approvalHub, roiTracker, runStore)
 
 	deps := web.Deps{
 		StaticFS:    staticFS,
@@ -95,7 +95,7 @@ func main() {
 		Approvals:   approvalHub,
 		ROI:         roiTracker,
 		RunStore:    runStore,
-		Qwen:        executor,
+		Qwen:        cliExec,
 	}
 
 	srv := &http.Server{

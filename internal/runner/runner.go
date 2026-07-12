@@ -10,13 +10,13 @@ import (
 
 	"wzr/internal/notify"
 	"wzr/internal/pipeline"
-	"wzr/internal/qwen"
+	"wzr/internal/executor"
 	"wzr/internal/skills"
 )
 
 const defaultApprovalTimeout = 30 * time.Minute
 
-// QwenClient is the interface for running Qwen prompts — satisfied by *qwen.CLIExecutor.
+// QwenClient is the interface for running Qwen prompts — satisfied by *executor.CLIExecutor.
 type QwenClient interface {
 	Run(ctx context.Context, prompt string, outputCh chan<- string) error
 }
@@ -141,7 +141,7 @@ func (r *Runner) executeStep(ctx context.Context, run *Run, p *pipeline.Pipeline
 		}
 	}
 
-	prompt, err := qwen.BuildStepPrompt(p, step, skillContent, prevOutput)
+	prompt, err := executor.BuildStepPrompt(p, step, skillContent, prevOutput)
 	if err != nil {
 		return "", fmt.Errorf("build step prompt: %w", err)
 	}
