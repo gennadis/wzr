@@ -22,7 +22,7 @@ func makeScript(t *testing.T, body string) string {
 
 func TestRun_Streams(t *testing.T) {
 	script := makeScript(t, "echo line1\necho line2\necho line3\n")
-	c := &Executor{BinaryPath: script}
+	c := &CLIExecutor{Command: script}
 	ch := make(chan string, 10)
 
 	if err := c.Run(context.Background(), "prompt", ch); err != nil {
@@ -44,7 +44,7 @@ func TestRun_Streams(t *testing.T) {
 
 func TestRun_NonZeroExit(t *testing.T) {
 	script := makeScript(t, "echo error output\nexit 1\n")
-	c := &Executor{BinaryPath: script}
+	c := &CLIExecutor{Command: script}
 	ch := make(chan string, 10)
 
 	err := c.Run(context.Background(), "prompt", ch)
@@ -55,7 +55,7 @@ func TestRun_NonZeroExit(t *testing.T) {
 
 func TestRun_ContextCancel(t *testing.T) {
 	script := makeScript(t, "sleep 30\n")
-	c := &Executor{BinaryPath: script}
+	c := &CLIExecutor{Command: script}
 	ch := make(chan string, 10)
 
 	ctx, cancel := context.WithCancel(context.Background())

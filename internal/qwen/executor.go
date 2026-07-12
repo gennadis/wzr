@@ -11,55 +11,71 @@ import (
 	"wzr/internal/pipeline"
 )
 
-// Executor wraps the Qwen Code CLI binary.
-type Executor struct {
-	BinaryPath string
+// commandContext is the exec.CommandContext function, replaced in tests.
+var commandContext = exec.CommandContext
+
+// CLIExecutor runs a Qwen-compatible CLI binary as a subprocess.
+type CLIExecutor struct {
+	// Command is the binary to run (resolved from PATH).
+	Command string
+	// Args are additional arguments passed to the binary before the prompt.
+	Args []string
 }
 
-// NewExecutor creates an Executor using the given binary path.
-func NewExecutor(binaryPath string) *Executor {
-	return &Executor{BinaryPath: binaryPath}
+// NewQwen returns a CLIExecutor configured for the qwen binary.
+func NewQwen() *CLIExecutor {
+	return &CLIExecutor{
+		Command: "qwen",
+		Args:    []string{"--approval-mode", "auto-edit", "--allowed-tools", "run_shell_command", "--model", "deepseek-v4-flash"},
+	}
 }
 
-// Run spawns qwen in agentic mode (auto-approve, run_shell_command allowed).
-// Use this for pipeline step execution where Qwen needs to run commands.
-func (c *Executor) Run(ctx context.Context, prompt string, outputCh chan<- string) error {
-	return c.spawn(ctx, prompt, outputCh,
-		"--approval-mode", "auto-edit",
-		"--allowed-tools", "run_shell_command",
-	)
+// NewGigacode returns a CLIExecutor configured for the gigacode binary.
+func NewGigacode() *CLIExecutor {
+	return &CLIExecutor{
+		Command: "gigacode",
+		Args:    []string{"--approval-mode", "auto-edit", "--allowed-tools", "run_shell_command", "--model", "vllm/Qwen3-Coder-Next-262k"},
+	}
 }
 
-// RunText spawns qwen in plain text-generation mode with no tools allowed.
+// Run spawns the binary in agentic mode using the executor's configured Args.
+// Use this for pipeline step execution where the binary needs to run commands.
+func (c *CLIExecutor) Run(ctx context.Context, prompt string, outputCh chan<- string) error {
+	return c.spawn(ctx, prompt, outputCh, c.Args)
+}
+
+// RunText spawns the binary in plain text-generation mode with no tools allowed.
 // Use this for creator, chat, and any call that must return structured text only.
-func (c *Executor) RunText(ctx context.Context, prompt string, outputCh chan<- string) error {
-	return c.spawn(ctx, prompt, outputCh, "--allowed-tools", "")
+func (c *CLIExecutor) RunText(ctx context.Context, prompt string, outputCh chan<- string) error {
+	return c.spawn(ctx, prompt, outputCh, []string{"--allowed-tools", ""})
 }
 
-func (c *Executor) spawn(ctx context.Context, prompt string, outputCh chan<- string, extraArgs ...string) error {
-	args := append([]string{"-p", prompt, "--output-format", "text"}, extraArgs...)
-	cmd := exec.CommandContext(ctx, c.BinaryPath, args...)
+func (c *CLIExecutor) spawn(ctx context.Context, prompt string, outputCh chan<- string, args []string) error {
+	fullArgs := make([]string, 0, 4+len(args))
+	fullArgs = append(fullArgs, "-p", prompt, "--output-format", "text")
+	fullArgs = append(fullArgs, args...)
+	cmd := commandContext(ctx, c.Command, fullArgs...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("stdout pipe: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start qwen: %w", err)
+		return fmt.Errorf("start %s: %w", c.Command, err)
 	}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		outputCh <- scanner.Text()
 	}
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read qwen stdout: %w", err)
+		return fmt.Errorf("read %s stdout: %w", c.Command, err)
 	}
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("qwen: %w", err)
+		return fmt.Errorf("%s: %w", c.Command, err)
 	}
 	return nil
 }
 
-// BuildStepPrompt assembles the prompt string sent to Qwen for a pipeline step.
+// BuildStepPrompt assembles the prompt string sent to the executor for a pipeline step.
 func BuildStepPrompt(p *pipeline.Pipeline, step *pipeline.Step, skillContent, prevOutput string) (string, error) {
 	paramsJSON, err := json.Marshal(step.Params)
 	if err != nil {
