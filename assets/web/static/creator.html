@@ -373,10 +373,14 @@
 
     // Strip ```yaml ... ``` or ``` ... ``` fences that the model sometimes adds.
     function stripCodeFences(text) {
-      let s = text.trim();
-      s = s.replace(/^```[a-zA-Z]*\n/, '');
-      s = s.replace(/\n```\s*$/, '');
-      return s.trim();
+      const s = text.trim();
+      const start = s.indexOf('```');
+      if (start === -1) return s;
+      const afterFence = s.indexOf('\n', start);
+      if (afterFence === -1) return s;
+      const end = s.lastIndexOf('\n```');
+      if (end <= afterFence) return s.slice(afterFence + 1).trim();
+      return s.slice(afterFence + 1, end).trim();
     }
 
     // Lightweight YAML syntax highlighter — returns safe HTML.
