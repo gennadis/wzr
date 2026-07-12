@@ -23,7 +23,9 @@ Pipeline orchestrator for Sber internal infrastructure. Single Go binary — bac
 - **Pipeline creator** — build pipelines step-by-step with AI chat or describe your goal and generate a full YAML
 - **Execution dashboard** — run pipelines, watch live narration as Qwen works, approve gates, handle failures
 - **Self-healing** — when a step fails, AI diagnoses the error, proposes a fix, you approve, pipeline continues
-- **Templates gallery** — 4 pre-built templates: release manager, PR review, incident response, onboarding
+- **Verify steps** — quality gates between steps: AI checks the previous output against a declared criteria before continuing
+- **Success criteria** — declare the overall goal on the pipeline; WZR exits early when it's met, skipping unnecessary steps
+- **Templates gallery** — 5 pre-built templates: release manager, PR review, incident response, onboarding, deployment health check
 - **ROI counter** — tracks time saved across all runs
 
 ## Build
@@ -93,14 +95,27 @@ manual_minutes: 60   # drives ROI counter
 params:
   project: ""
   version: ""
+
+# Optional: declare the overall goal. After each step WZR asks the AI whether
+# the goal is already met — if YES it exits early, skipping remaining steps.
+success_criteria: "all Jira tickets are released and the build is green"
+
 steps:
   - id: check-readiness
     name: Check Jira tickets
-    type: skill                    # skill | mcp | approval
+    type: skill                    # skill | mcp | approval | verify
     skill: check-release-readiness
     params:
       project: "{{ .project }}"
       version: "{{ .version }}"
+
+  # verify: AI evaluates the previous step's output against `criteria`.
+  # PASS → continue. FAIL → triggers the same repair flow as a step failure.
+  - id: check-readiness-quality
+    name: Verify readiness report is actionable
+    type: verify
+    params:
+      criteria: "output must contain a clear PASS or FAIL verdict with specific ticket keys listed"
 
   - id: trigger-build
     name: Trigger Jenkins build
@@ -151,6 +166,7 @@ WZR ships with 5 pre-configured MCP servers:
 |-------|---------|
 | `check-release-readiness` | Checks Jira tickets are in "Done"/"Ready" before releasing |
 | `update-release-notes` | Updates Confluence release notes page from Jira issues |
+| `diagnose-deployment-readiness` | Evaluates DB health metrics and Jenkins build to produce a DEPLOY SAFE / DEPLOY BLOCKED verdict |
 
 ## Notifications
 
