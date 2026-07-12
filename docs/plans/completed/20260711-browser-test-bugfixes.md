@@ -83,11 +83,11 @@ and cause all SSE events to be lost when the client subscribes slightly after th
 **Files:**
 - Modify: `assets/web/static/creator.html`
 
-- [ ] rewrite `stripCodeFences(text)` to find the index of the first ` ``` ` occurrence using `indexOf`
-- [ ] if a fence is found: slice the string from that index, strip the opening fence line (` ```yaml` or ` ``` `), then strip the trailing ` ``` ` (and anything after it)
-- [ ] if no fence is found: return `text.trim()` unchanged (Qwen correctly returned bare YAML)
-- [ ] run `go build ./...` to confirm the embedded asset compiles cleanly
-- [ ] verify the function handles: (a) bare YAML — no change, (b) ` ```yaml\n...\n``` ` at start — fences stripped, (c) prose + ` ```yaml\n...\n``` ` — prose removed, fences stripped
+- [x] rewrite `stripCodeFences(text)` to find the index of the first ` ``` ` occurrence using `indexOf`
+- [x] if a fence is found: slice the string from that index, strip the opening fence line (` ```yaml` or ` ``` `), then strip the trailing ` ``` ` (and anything after it)
+- [x] if no fence is found: return `text.trim()` unchanged (Qwen correctly returned bare YAML)
+- [x] run `go build ./...` to confirm the embedded asset compiles cleanly
+- [x] verify the function handles: (a) bare YAML — no change, (b) ` ```yaml\n...\n``` ` at start — fences stripped, (c) prose + ` ```yaml\n...\n``` ` — prose removed, fences stripped
 
 ### Task 4: Add SSE Hub replay buffer + fix placeholder class (Bug 4 — SSE race)
 
@@ -96,29 +96,29 @@ and cause all SSE events to be lost when the client subscribes slightly after th
 - Modify: `internal/notify/notifier_test.go`
 - Modify: `assets/web/static/dashboard.html`
 
-- [ ] add `replay map[string][]StepEvent` field to `Hub` struct in `sse.go`; initialise it in `NewHub()`
-- [ ] in `Hub.send()`, after writing to the subscriber channel, append the event to `h.replay[runID]` (under the same mutex lock)
-- [ ] in `Hub.Subscribe()`, after creating the new channel, replay all buffered events for `runID` into the channel before appending the subscriber and releasing the lock; ensure the channel has capacity for replay events (current buffer is 64 — sufficient for any single run)
-- [ ] in `Hub.Unsubscribe()`, delete `h.replay[runID]` after closing the channel to free memory
-- [ ] add `TestHub_ReplayOnSubscribe`: publish 3 events before subscribing, then subscribe and verify all 3 are received in order
-- [ ] add `TestHub_ReplayClearedOnUnsubscribe`: publish events, unsubscribe, subscribe again — verify no events are replayed on the second subscription
-- [ ] run `go test ./internal/notify/... -v` — all tests must pass
-- [ ] in `dashboard.html` line 274: add class `placeholder` to the "Starting…" div so `ensureStepRow()` can remove it when the first real step row arrives
-- [ ] run `go build ./...` and `go test ./...` — must pass before Task 5
+- [x] add `replay map[string][]StepEvent` field to `Hub` struct in `sse.go`; initialise it in `NewHub()`
+- [x] in `Hub.send()`, after writing to the subscriber channel, append the event to `h.replay[runID]` (under the same mutex lock)
+- [x] in `Hub.Subscribe()`, after creating the new channel, replay all buffered events for `runID` into the channel before appending the subscriber and releasing the lock; ensure the channel has capacity for replay events (current buffer is 64 — sufficient for any single run)
+- [x] in `Hub.Unsubscribe()`, delete `h.replay[runID]` after closing the channel to free memory
+- [x] add `TestHub_ReplayOnSubscribe`: publish 3 events before subscribing, then subscribe and verify all 3 are received in order
+- [x] add `TestHub_ReplayClearedOnUnsubscribe`: publish events, unsubscribe, subscribe again — verify no events are replayed on the second subscription
+- [x] run `go test ./internal/notify/... -v` — all tests must pass
+- [x] in `dashboard.html` line 274: add class `placeholder` to the "Starting…" div so `ensureStepRow()` can remove it when the first real step row arrives
+- [x] run `go build ./...` and `go test ./...` — must pass before Task 5
 
 ### Task 5: Verify acceptance criteria
 
-- [ ] run full quality gate: `go mod tidy && go mod verify && go build ./... && go test ./... && go vet ./... && golangci-lint run ./...`
-- [ ] confirm Bug 1 fix: `index.html` has no `hx-get`/`hx-swap` and includes a `fetch('/api/stats')` script
-- [ ] confirm Bug 2 fix: `creator.html` button uses `data-step` attribute and `onclick="addStep(this)"` — no single-quote interpolation
-- [ ] confirm Bug 3 fix: `stripCodeFences` uses `indexOf` not anchored regex; handles prose prefix
-- [ ] confirm Bug 4 fix: `Hub.replay` map present, populated in `send()`, drained in `Subscribe()`, cleared in `Unsubscribe()`; placeholder div has class `placeholder`
-- [ ] confirm all new tests (`TestHub_ReplayOnSubscribe`, `TestHub_ReplayClearedOnUnsubscribe`) pass
+- [x] run full quality gate: `go mod tidy && go mod verify && go build ./... && go test ./... && go vet ./... && golangci-lint run ./...`
+- [x] confirm Bug 1 fix: `index.html` has no `hx-get`/`hx-swap` and includes a `fetch('/api/stats')` script
+- [x] confirm Bug 2 fix: `creator.html` button uses `data-step` attribute and `onclick="addStep(this)"` — no single-quote interpolation
+- [x] confirm Bug 3 fix: `stripCodeFences` uses `indexOf` not anchored regex; handles prose prefix
+- [x] confirm Bug 4 fix: `Hub.replay` map present, populated in `send()`, drained in `Subscribe()`, cleared in `Unsubscribe()`; placeholder div has class `placeholder`
+- [x] confirm all new tests (`TestHub_ReplayOnSubscribe`, `TestHub_ReplayClearedOnUnsubscribe`) pass
 
 ### Task 6: Commit and close plan
 
-- [ ] commit all changes with message: `fix: stats bar JSON, creator onclick, stripCodeFences, SSE replay buffer`
-- [ ] move this plan to `docs/plans/completed/`
+- [x] commit all changes with message: `fix: stats bar JSON, creator onclick, stripCodeFences, SSE replay buffer`
+- [x] move this plan to `docs/plans/completed/`
 
 ---
 
