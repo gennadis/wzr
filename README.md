@@ -7,6 +7,12 @@
 
 Pipeline orchestrator for Sber internal infrastructure. Single Go binary — backend, web UI, embedded skills and templates.
 
+## Screenshots
+
+![Home](docs/screenshots/home.png)
+![Dashboard](docs/screenshots/dashboard.png)
+![Creator](docs/screenshots/creator.png)
+
 ## What it does
 
 - **Pipeline creator** — build pipelines step-by-step with AI chat or describe your goal and generate a full YAML
