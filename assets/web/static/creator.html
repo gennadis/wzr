@@ -327,21 +327,31 @@
       const area = document.getElementById('chat-area');
       const div = document.createElement('div');
       div.className = 'step-suggestion';
+      const stepData = JSON.stringify(step).replace(/"/g, '&quot;');
       div.innerHTML = `
         <strong>${step.name || step.id}</strong>
         <span style="color:var(--muted);font-size:0.75rem;margin-left:0.5rem">[${step.type}]</span>
         <pre>${JSON.stringify(step, null, 2)}</pre>
-        <button style="margin-top:0.5rem;font-size:0.75rem" onclick='addStep(${JSON.stringify(step)}, this.closest(".step-suggestion"))'>Add to pipeline</button>
+        <button style="margin-top:0.5rem;font-size:0.75rem" data-step="${stepData}" onclick="addStep(this)">Add to pipeline</button>
       `;
       area.appendChild(div);
       area.scrollTop = area.scrollHeight;
     }
 
-    function addStep(step, el) {
+    function addStep(stepOrBtn, el) {
+      let step, container;
+      if (stepOrBtn instanceof HTMLElement) {
+        step = JSON.parse(stepOrBtn.dataset.step);
+        container = stepOrBtn.closest('.step-suggestion');
+        stepOrBtn.disabled = true;
+      } else {
+        step = stepOrBtn;
+        container = el;
+        if (container) container.querySelector('button').disabled = true;
+      }
       steps.push(step);
       renderStepChips();
-      el.style.opacity = '0.5';
-      el.querySelector('button').disabled = true;
+      if (container) container.style.opacity = '0.5';
     }
 
     function removeStep(idx) {

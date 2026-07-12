@@ -72,11 +72,11 @@ and cause all SSE events to be lost when the client subscribes slightly after th
 **Files:**
 - Modify: `assets/web/static/creator.html`
 
-- [ ] in `appendStepSuggestion()` change the button's `onclick` attribute: store the serialised step in a `data-step` attribute using a template literal with escaped HTML, e.g. `data-step="${JSON.stringify(step).replace(/"/g, '&quot;')}"`
-- [ ] change the button's `onclick` to `onclick="addStep(this)"` (no interpolation)
-- [ ] update `addStep(stepOrBtn, el)` to detect when it receives an HTMLElement (the button): read `JSON.parse(btn.dataset.step)` and derive `el = btn.closest('.step-suggestion')`; keep the existing `addStep(step, el)` object call path for backward compat
-- [ ] run `go build ./...` to confirm the embedded asset compiles cleanly
-- [ ] verify the fix handles JQL values containing single quotes (e.g. `status = 'Ready'`) by inspecting the generated HTML
+- [x] in `appendStepSuggestion()` change the button's `onclick` attribute: store the serialised step in a `data-step` attribute using a template literal with escaped HTML, e.g. `data-step="${JSON.stringify(step).replace(/"/g, '&quot;')}"`
+- [x] change the button's `onclick` to `onclick="addStep(this)"` (no interpolation)
+- [x] update `addStep(stepOrBtn, el)` to detect when it receives an HTMLElement (the button): read `JSON.parse(btn.dataset.step)` and derive `el = btn.closest('.step-suggestion')`; keep the existing `addStep(step, el)` object call path for backward compat
+- [x] run `go build ./...` to confirm the embedded asset compiles cleanly
+- [x] verify the fix handles JQL values containing single quotes (e.g. `status = 'Ready'`) by inspecting the generated HTML
 
 ### Task 3: Fix stripCodeFences prose prefix (Bug 3 — anchored regex)
 
