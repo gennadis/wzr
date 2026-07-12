@@ -13,6 +13,7 @@ const (
 	StatusRepairSuggested  EventStatus = "repair_suggested"
 	StatusNarration        EventStatus = "narration"
 	StatusPostmortem       EventStatus = "postmortem"
+	StatusEarlySuccess     EventStatus = "early_success"
 )
 
 // StepEvent is the unified event shape shared by SSE and SberChat notifiers.

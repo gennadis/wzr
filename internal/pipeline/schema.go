@@ -7,6 +7,7 @@ const (
 	StepTypeSkill    StepType = "skill"
 	StepTypeMCP      StepType = "mcp"
 	StepTypeApproval StepType = "approval"
+	StepTypeVerify   StepType = "verify"
 )
 
 // Step represents a single pipeline step.
@@ -29,11 +30,12 @@ type OnFailure struct {
 
 // Pipeline is the top-level YAML structure.
 type Pipeline struct {
-	Name          string            `yaml:"name"                   json:"name"`
-	Version       string            `yaml:"version,omitempty"      json:"version,omitempty"`
-	Description   string            `yaml:"description,omitempty"  json:"description,omitempty"`
-	Params        map[string]string `yaml:"params,omitempty"       json:"params,omitempty"`
-	Steps         []Step            `yaml:"steps"                  json:"steps"`
-	OnFailure     OnFailure         `yaml:"on_failure,omitempty"   json:"on_failure"`
-	ManualMinutes int               `yaml:"manual_minutes,omitempty" json:"manual_minutes,omitempty"`
+	Name            string            `yaml:"name"                     json:"name"`
+	Version         string            `yaml:"version,omitempty"        json:"version,omitempty"`
+	Description     string            `yaml:"description,omitempty"    json:"description,omitempty"`
+	Params          map[string]string `yaml:"params,omitempty"         json:"params,omitempty"`
+	Steps           []Step            `yaml:"steps"                    json:"steps"`
+	OnFailure       OnFailure         `yaml:"on_failure,omitempty"     json:"on_failure"`
+	ManualMinutes   int               `yaml:"manual_minutes,omitempty" json:"manual_minutes,omitempty"`
+	SuccessCriteria string            `yaml:"success_criteria,omitempty" json:"success_criteria,omitempty"`
 }

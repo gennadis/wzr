@@ -23,6 +23,14 @@ type stubQwen struct {
 }
 
 func (s *stubQwen) Run(_ context.Context, _ string, outputCh chan<- string) error {
+	return s.emit(outputCh)
+}
+
+func (s *stubQwen) RunText(_ context.Context, _ string, outputCh chan<- string) error {
+	return s.emit(outputCh)
+}
+
+func (s *stubQwen) emit(outputCh chan<- string) error {
 	s.mu.Lock()
 	idx := s.call
 	s.call++
@@ -70,9 +78,9 @@ func (c *captureNotifier) byStatus(s notify.EventStatus) []notify.StepEvent {
 	return out
 }
 
-// waitForStatus blocks until an event with the given status is captured or timeout.
-func (c *captureNotifier) waitForStatus(s notify.EventStatus, timeout time.Duration) (notify.StepEvent, bool) {
-	deadline := time.NewTimer(timeout)
+// waitForStatus blocks until an event with the given status is captured or 5 s.
+func (c *captureNotifier) waitForStatus(s notify.EventStatus) (notify.StepEvent, bool) {
+	deadline := time.NewTimer(5 * time.Second)
 	defer deadline.Stop()
 	for {
 		select {
@@ -157,7 +165,7 @@ func TestExecute_ApprovalGate_Approved(t *testing.T) {
 
 	runCh := make(chan *Run, 1)
 	go func() {
-		e, ok := cn.waitForStatus(notify.StatusAwaitingApproval, 5*time.Second)
+		e, ok := cn.waitForStatus(notify.StatusAwaitingApproval)
 		if ok {
 			hub.Respond(e.RunID, e.StepID, true)
 		}
@@ -213,7 +221,7 @@ func TestExecute_RepairApproved_RetrySucceeds(t *testing.T) {
 
 	runCh := make(chan *Run, 1)
 	go func() {
-		e, ok := cn.waitForStatus(notify.StatusRepairSuggested, 5*time.Second)
+		e, ok := cn.waitForStatus(notify.StatusRepairSuggested)
 		if ok {
 			hub.Respond(e.RunID, e.StepID+":repair", true)
 		}
@@ -252,7 +260,7 @@ func TestExecute_RepairRejected_PostmortemFired(t *testing.T) {
 
 	runCh := make(chan *Run, 1)
 	go func() {
-		e, ok := cn.waitForStatus(notify.StatusRepairSuggested, 5*time.Second)
+		e, ok := cn.waitForStatus(notify.StatusRepairSuggested)
 		if ok {
 			hub.Respond(e.RunID, e.StepID+":repair", false)
 		}
@@ -272,6 +280,109 @@ func TestExecute_RepairRejected_PostmortemFired(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("test timed out")
+	}
+}
+
+// --- verify step ---
+
+func TestExecute_VerifyStep_Pass(t *testing.T) {
+	q := &stubQwen{outputs: [][]string{
+		{"step output"},
+		{"PASS: criteria satisfied"},
+	}}
+	r, cn, _ := newTestRunner(t, q)
+
+	p := simplePipeline(
+		pipeline.Step{ID: "s1", Name: "Do work", Type: pipeline.StepTypeSkill, Skill: "my-skill"},
+		pipeline.Step{ID: "v1", Name: "Check output", Type: pipeline.StepTypeVerify,
+			Params: map[string]string{"criteria": "output must be non-empty"}},
+	)
+	run, err := r.Execute(context.Background(), p, nil)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if run.Status != RunStatusSuccess {
+		t.Errorf("run status: got %q, want success", run.Status)
+	}
+	if len(cn.byStatus(notify.StatusSuccess)) == 0 {
+		t.Error("no success event fired")
+	}
+}
+
+func TestExecute_VerifyStep_Fail_TriggersRepair(t *testing.T) {
+	q := &stubQwen{
+		outputs: [][]string{
+			{"step output"},
+			{"FAIL: output is missing required field"},
+			{`{"diagnosis":"missing field","fix_command":"retry"}`},
+			{"postmortem"},
+		},
+		errs: []error{nil, nil, nil, nil},
+	}
+	r, cn, hub := newTestRunner(t, q)
+
+	p := simplePipeline(
+		pipeline.Step{ID: "s1", Name: "Do work", Type: pipeline.StepTypeSkill, Skill: "my-skill"},
+		pipeline.Step{ID: "v1", Name: "Check output", Type: pipeline.StepTypeVerify,
+			Params: map[string]string{"criteria": "output must contain required field"}},
+	)
+
+	runCh := make(chan *Run, 1)
+	go func() {
+		e, ok := cn.waitForStatus(notify.StatusRepairSuggested)
+		if ok {
+			hub.Respond(e.RunID, e.StepID+":repair", false)
+		}
+	}()
+	go func() {
+		run, _ := r.Execute(context.Background(), p, nil)
+		runCh <- run
+	}()
+
+	select {
+	case run := <-runCh:
+		if run.Status != RunStatusFailed {
+			t.Errorf("run status: got %q, want failed", run.Status)
+		}
+		if len(cn.byStatus(notify.StatusRepairSuggested)) == 0 {
+			t.Error("repair_suggested event not fired after verify FAIL")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("test timed out")
+	}
+}
+
+// --- success criteria ---
+
+func TestExecute_SuccessCriteria_EarlyExit(t *testing.T) {
+	q := &stubQwen{outputs: [][]string{
+		{"step 1 output"},
+		{"YES: goal is achieved"},
+	}}
+	r, cn, _ := newTestRunner(t, q)
+
+	p := &pipeline.Pipeline{
+		Name:            "test-pipe",
+		ManualMinutes:   10,
+		SuccessCriteria: "output must confirm success",
+		Steps: []pipeline.Step{
+			{ID: "s1", Name: "First step", Type: pipeline.StepTypeSkill, Skill: "my-skill"},
+			{ID: "s2", Name: "Second step", Type: pipeline.StepTypeSkill, Skill: "my-skill"},
+		},
+	}
+	run, err := r.Execute(context.Background(), p, nil)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if run.Status != RunStatusSuccess {
+		t.Errorf("run status: got %q, want success", run.Status)
+	}
+	// s2 must not have run — only 1 step result
+	if len(run.Steps) != 1 {
+		t.Errorf("expected 1 completed step (early exit), got %d", len(run.Steps))
+	}
+	if len(cn.byStatus(notify.StatusEarlySuccess)) == 0 {
+		t.Error("early_success event not fired")
 	}
 }
 

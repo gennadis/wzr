@@ -1,0 +1,84 @@
+name: deployment-health-check
+version: "1.0"
+description: >
+  Validates deployment readiness by checking DB health metrics and Jenkins build status.
+  Exits early when everything is green — only escalates to Jira and Confluence when action is needed.
+manual_minutes: 35
+params:
+  service: ""
+  environment: "staging"
+  jira_project: "OPS"
+  confluence_space: "OPS"
+
+success_criteria: >
+  service {{ .service }} has zero failed records, error rate below 1%, p95 latency under 500ms,
+  and a green Jenkins build — safe to deploy to {{ .environment }} with no further action required
+
+steps:
+  - id: fetch-db-metrics
+    name: Fetch DB health metrics
+    type: mcp
+    server: postgres
+    tool: query
+    params:
+      query: >
+        SELECT
+          ROUND(100.0 * SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) / COUNT(*), 2) AS error_rate_pct,
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95_latency_ms,
+          SUM(CASE WHEN status = 'failed' AND created_at > NOW() - INTERVAL '24h' THEN 1 ELSE 0 END) AS failed_records_24h,
+          COUNT(*) AS total_records
+        FROM {{ .service }}_events
+        WHERE created_at > NOW() - INTERVAL '1h'
+
+  - id: verify-metrics-complete
+    name: Verify metrics response is complete
+    type: verify
+    params:
+      criteria: >
+        output must include numeric values for error_rate_pct, p95_latency_ms,
+        failed_records_24h, and total_records — none of them null or empty
+
+  - id: fetch-build-status
+    name: Fetch latest Jenkins build status
+    type: mcp
+    server: jenkins
+    tool: get_build_status
+    params:
+      job: "deploy/{{ .service }}"
+      build_number: latest
+
+  - id: diagnose-readiness
+    name: AI deployment readiness diagnosis
+    type: skill
+    skill: diagnose-deployment-readiness
+    params:
+      service: "{{ .service }}"
+      environment: "{{ .environment }}"
+
+  - id: verify-diagnosis-actionable
+    name: Verify diagnosis contains a clear verdict
+    type: verify
+    params:
+      criteria: >
+        diagnosis must contain either DEPLOY SAFE or DEPLOY BLOCKED
+        with at least one specific metric value listed
+
+  - id: search-existing-blockers
+    name: Search for open blocker tickets in Jira
+    type: mcp
+    server: jira
+    tool: search_issues
+    params:
+      jql: "project = {{ .jira_project }} AND labels = {{ .service }}-deploy-blocker AND resolution = Unresolved ORDER BY created DESC"
+
+  - id: post-report
+    name: Post readiness report to Confluence
+    type: mcp
+    server: confluence
+    tool: create_page
+    params:
+      space: "{{ .confluence_space }}"
+      title: "Deployment Readiness — {{ .service }} → {{ .environment }}"
+
+on_failure:
+  notify: "Deployment health check for {{ .service }} failed at step {{ .failed_step }}: {{ .error }}"
