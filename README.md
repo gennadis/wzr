@@ -46,17 +46,22 @@ Open [http://localhost:8080](http://localhost:8080).
 #   ...
 ```
 
-## Qwen Code CLI
+## Execution engine
 
-WZR uses [Qwen Code](https://github.com/QwenLM/qwen-code) as its autonomous execution engine. Install it and make sure the binary is on `$PATH` or pass `--qwen /path/to/qwen`.
+WZR ships two `CLIExecutor` presets. Use `--qwen` to point at the binary if it is not on `$PATH`.
 
-WZR runs each pipeline step in agentic mode:
+| Preset | Binary | Model |
+|--------|--------|-------|
+| `NewQwen()` (default) | `qwen` | `deepseek-v4-flash` |
+| `NewGigacode()` | `gigacode` | `vllm/Qwen3-Coder-Next-262k` |
+
+Each pipeline step runs in agentic mode:
 
 ```sh
-qwen -p "<step prompt>" --output-format text --approval-mode auto-edit --allowed-tools run_shell_command
+qwen -p "<step prompt>" --output-format text --approval-mode auto-edit --allowed-tools run_shell_command --model deepseek-v4-flash
 ```
 
-For creator and post-run chat, it runs in text-only mode (no tools):
+Creator and post-run chat use text-only mode (no tools):
 
 ```sh
 qwen -p "<prompt>" --output-format text --allowed-tools ""
