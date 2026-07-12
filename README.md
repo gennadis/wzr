@@ -1,4 +1,9 @@
-# WZR — WZR's Zen Runtime
+# wzr
+> WZR's Zen Runtime.
+
+[![Go Version](https://img.shields.io/badge/Go-1.25.1-blue?logo=go)](https://go.dev)
+[![CI](https://github.com/gennadis/wzr/actions/workflows/go.yaml/badge.svg)](https://github.com/gennadis/wzr/actions)
+[![codecov](https://codecov.io/github/gennadis/wzr/graph/badge.svg?token=CYVVH38BZ8)](https://codecov.io/github/gennadis/wzr)
 
 Pipeline orchestrator for Sber internal infrastructure. Single Go binary — backend, web UI, embedded skills and templates.
 
