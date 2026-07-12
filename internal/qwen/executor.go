@@ -11,19 +11,19 @@ import (
 	"wzr/internal/pipeline"
 )
 
-// Client wraps the Qwen Code CLI binary.
-type Client struct {
+// Executor wraps the Qwen Code CLI binary.
+type Executor struct {
 	BinaryPath string
 }
 
-// NewClient creates a Client using the given binary path.
-func NewClient(binaryPath string) *Client {
-	return &Client{BinaryPath: binaryPath}
+// NewExecutor creates an Executor using the given binary path.
+func NewExecutor(binaryPath string) *Executor {
+	return &Executor{BinaryPath: binaryPath}
 }
 
 // Run spawns qwen in agentic mode (auto-approve, run_shell_command allowed).
 // Use this for pipeline step execution where Qwen needs to run commands.
-func (c *Client) Run(ctx context.Context, prompt string, outputCh chan<- string) error {
+func (c *Executor) Run(ctx context.Context, prompt string, outputCh chan<- string) error {
 	return c.spawn(ctx, prompt, outputCh,
 		"--approval-mode", "auto-edit",
 		"--allowed-tools", "run_shell_command",
@@ -32,11 +32,11 @@ func (c *Client) Run(ctx context.Context, prompt string, outputCh chan<- string)
 
 // RunText spawns qwen in plain text-generation mode with no tools allowed.
 // Use this for creator, chat, and any call that must return structured text only.
-func (c *Client) RunText(ctx context.Context, prompt string, outputCh chan<- string) error {
+func (c *Executor) RunText(ctx context.Context, prompt string, outputCh chan<- string) error {
 	return c.spawn(ctx, prompt, outputCh, "--allowed-tools", "")
 }
 
-func (c *Client) spawn(ctx context.Context, prompt string, outputCh chan<- string, extraArgs ...string) error {
+func (c *Executor) spawn(ctx context.Context, prompt string, outputCh chan<- string, extraArgs ...string) error {
 	args := append([]string{"-p", prompt, "--output-format", "text"}, extraArgs...)
 	cmd := exec.CommandContext(ctx, c.BinaryPath, args...)
 	stdout, err := cmd.StdoutPipe()

@@ -76,7 +76,7 @@ func main() {
 	approvalHub := runner.NewApprovalHub()
 	roiTracker := runner.NewROITracker(cfg.HistoryFile)
 	runStore := runner.NewRunStore()
-	qwenClient := qwen.NewClient(cfg.QwenBinary)
+	qwenClient := qwen.NewExecutor(cfg.QwenBinary)
 	notifier := notify.NewSSENotifier(sseHub)
 
 	r := runner.NewRunner(skillReg, qwenClient, notifier, approvalHub, roiTracker, runStore)

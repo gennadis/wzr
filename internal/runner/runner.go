@@ -16,7 +16,7 @@ import (
 
 const defaultApprovalTimeout = 30 * time.Minute
 
-// QwenClient is the interface for running Qwen prompts — satisfied by *qwen.Client.
+// QwenClient is the interface for running Qwen prompts — satisfied by *qwen.Executor.
 type QwenClient interface {
 	Run(ctx context.Context, prompt string, outputCh chan<- string) error
 }
