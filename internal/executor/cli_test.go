@@ -1,4 +1,4 @@
-package executor
+package executor_test
 
 import (
 	"context"
@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"wzr/internal/executor"
 	"wzr/internal/pipeline"
+	"wzr/internal/prompts"
 )
 
 func makeScript(t *testing.T, body string) string {
@@ -22,7 +24,7 @@ func makeScript(t *testing.T, body string) string {
 
 func TestRun_Streams(t *testing.T) {
 	script := makeScript(t, "echo line1\necho line2\necho line3\n")
-	c := &CLIExecutor{Command: script}
+	c := &executor.CLIExecutor{Command: script}
 	ch := make(chan string, 10)
 
 	if err := c.Run(context.Background(), "prompt", ch); err != nil {
@@ -44,7 +46,7 @@ func TestRun_Streams(t *testing.T) {
 
 func TestRun_NonZeroExit(t *testing.T) {
 	script := makeScript(t, "echo error output\nexit 1\n")
-	c := &CLIExecutor{Command: script}
+	c := &executor.CLIExecutor{Command: script}
 	ch := make(chan string, 10)
 
 	err := c.Run(context.Background(), "prompt", ch)
@@ -55,7 +57,7 @@ func TestRun_NonZeroExit(t *testing.T) {
 
 func TestRun_ContextCancel(t *testing.T) {
 	script := makeScript(t, "sleep 30\n")
-	c := &CLIExecutor{Command: script}
+	c := &executor.CLIExecutor{Command: script}
 	ch := make(chan string, 10)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,7 +82,7 @@ func TestBuildStepPrompt_Skill(t *testing.T) {
 		},
 	}
 
-	prompt, err := BuildStepPrompt(p, step, "# skill content here", "prev step output")
+	prompt, err := prompts.BuildStepPrompt(p, step, "# skill content here", "prev step output")
 	if err != nil {
 		t.Fatalf("BuildStepPrompt: %v", err)
 	}
@@ -102,7 +104,7 @@ func TestBuildStepPrompt_MCP(t *testing.T) {
 		Params: map[string]string{"state": "open"},
 	}
 
-	prompt, err := BuildStepPrompt(p, step, "", "")
+	prompt, err := prompts.BuildStepPrompt(p, step, "", "")
 	if err != nil {
 		t.Fatalf("BuildStepPrompt: %v", err)
 	}
@@ -120,7 +122,7 @@ func TestBuildStepPrompt_NoPrevOutput(t *testing.T) {
 	p := &pipeline.Pipeline{Name: "p"}
 	step := &pipeline.Step{ID: "s1", Name: "Step", Type: pipeline.StepTypeSkill}
 
-	prompt, err := BuildStepPrompt(p, step, "skill", "")
+	prompt, err := prompts.BuildStepPrompt(p, step, "skill", "")
 	if err != nil {
 		t.Fatalf("BuildStepPrompt: %v", err)
 	}

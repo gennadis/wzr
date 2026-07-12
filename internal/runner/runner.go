@@ -10,7 +10,7 @@ import (
 
 	"wzr/internal/notify"
 	"wzr/internal/pipeline"
-	"wzr/internal/executor"
+	"wzr/internal/prompts"
 	"wzr/internal/skills"
 )
 
@@ -164,7 +164,7 @@ func (r *Runner) executeStep(ctx context.Context, run *Run, p *pipeline.Pipeline
 		}
 	}
 
-	prompt, err := executor.BuildStepPrompt(p, step, skillContent, prevOutput)
+	prompt, err := prompts.BuildStepPrompt(p, step, skillContent, prevOutput)
 	if err != nil {
 		return "", fmt.Errorf("build step prompt: %w", err)
 	}
@@ -190,8 +190,7 @@ func (r *Runner) executeStep(ctx context.Context, run *Run, p *pipeline.Pipeline
 }
 
 func (r *Runner) runRepairFlow(ctx context.Context, run *Run, p *pipeline.Pipeline, step *pipeline.Step, errOutput string) bool {
-	repairPrompt := buildRepairPrompt(p, step, errOutput)
-	repairOut := r.runQwenCollect(ctx, run, repairPrompt)
+	repairOut := r.runQwenCollect(ctx, run, prompts.BuildRepairDiagnosis(p, step, errOutput))
 	result := parseRepairResult(repairOut)
 
 	r.notify(ctx, notify.StepEvent{
@@ -213,8 +212,7 @@ func (r *Runner) runRepairFlow(ctx context.Context, run *Run, p *pipeline.Pipeli
 		return false
 	}
 
-	fixPrompt := "Execute this fix and report the result:\n" + result.FixCommand
-	r.runQwenCollect(ctx, run, fixPrompt)
+	r.runQwenCollect(ctx, run, prompts.BuildRepairFix(result.FixCommand))
 
 	var retryErr error
 	if step.Type == pipeline.StepTypeVerify {
@@ -230,12 +228,7 @@ func (r *Runner) runRepairFlow(ctx context.Context, run *Run, p *pipeline.Pipeli
 }
 
 func (r *Runner) triggerPostmortem(ctx context.Context, run *Run, step *pipeline.Step, errOutput string) {
-	prompt := fmt.Sprintf(
-		"Pipeline %q failed at step %q.\n\nError:\n%s\n\nRun log:\n%s\n\n"+
-			"Provide a post-mortem analysis: root cause, impact, and prevention.",
-		run.PipelineName, step.ID, errOutput, r.runStore.GetLog(run.ID),
-	)
-	analysis := r.runQwenCollect(ctx, run, prompt)
+	analysis := r.runQwenCollect(ctx, run, prompts.BuildPostmortem(run.PipelineName, step.ID, errOutput, r.runStore.GetLog(run.ID)))
 	r.notify(ctx, notify.StepEvent{
 		RunID: run.ID, Pipeline: run.PipelineName,
 		StepID: step.ID, StepName: step.Name,
@@ -277,14 +270,6 @@ type repairResult struct {
 	FixCommand string `json:"fix_command"`
 }
 
-func buildRepairPrompt(p *pipeline.Pipeline, step *pipeline.Step, errOutput string) string {
-	return fmt.Sprintf(
-		"Step %q (id: %s) in pipeline %q failed:\n\n%s\n\n"+
-			"Respond with ONLY JSON: {\"diagnosis\": \"...\", \"fix_command\": \"...\"}",
-		step.Name, step.ID, p.Name, errOutput,
-	)
-}
-
 func parseRepairResult(output string) repairResult {
 	start := strings.Index(output, "{")
 	end := strings.LastIndex(output, "}")
@@ -301,8 +286,7 @@ func parseRepairResult(output string) repairResult {
 // Returns an error (causing the repair flow) when Qwen responds with FAIL.
 func (r *Runner) runVerifyStep(ctx context.Context, run *Run, step *pipeline.Step, prevOutput string) (string, error) {
 	criteria := step.Params["criteria"]
-	prompt := buildVerifyPrompt(criteria, prevOutput)
-	output := r.runQwenTextCollect(ctx, run, prompt)
+	output := r.runQwenTextCollect(ctx, run, prompts.BuildVerify(criteria, prevOutput))
 	if isVerifyFail(output) {
 		return output, fmt.Errorf("step %q: verify FAIL — %s", step.ID, output)
 	}
@@ -316,8 +300,7 @@ func (r *Runner) checkSuccessCriteria(ctx context.Context, run *Run, p *pipeline
 	if p.SuccessCriteria == "" {
 		return false
 	}
-	prompt := buildSuccessCriteriaPrompt(p.SuccessCriteria, r.runStore.GetLog(run.ID))
-	output := r.runQwenTextCollect(ctx, run, prompt)
+	output := r.runQwenTextCollect(ctx, run, prompts.BuildSuccessCriteria(p.SuccessCriteria, r.runStore.GetLog(run.ID)))
 	return isSuccessYes(output)
 }
 
@@ -347,28 +330,6 @@ func (r *Runner) collectWith(ctx context.Context, run *Run, prompt string, fn qw
 		log.Printf("qwen collect error for run %s: %v", run.ID, err)
 	}
 	return strings.Join(lines, "\n")
-}
-
-func buildVerifyPrompt(criteria, prevOutput string) string {
-	return fmt.Sprintf(
-		"You are a quality gate for a pipeline step.\n\n"+
-			"Previous step output:\n%s\n\n"+
-			"Criteria to satisfy:\n%s\n\n"+
-			"Does the output satisfy the criteria? "+
-			"Respond with PASS or FAIL on the first line, then your reasoning.",
-		prevOutput, criteria,
-	)
-}
-
-func buildSuccessCriteriaPrompt(criteria, runLog string) string {
-	return fmt.Sprintf(
-		"You are evaluating whether a pipeline goal has been fully achieved.\n\n"+
-			"Goal:\n%s\n\n"+
-			"Pipeline output so far:\n%s\n\n"+
-			"Has the goal been fully achieved? "+
-			"Answer YES or NO on the first line, then your reasoning.",
-		criteria, runLog,
-	)
 }
 
 // isVerifyFail returns true when Qwen's first line starts with FAIL.

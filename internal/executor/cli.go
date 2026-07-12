@@ -3,12 +3,8 @@ package executor
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
-	"strings"
-
-	"wzr/internal/pipeline"
 )
 
 // commandContext is the exec.CommandContext function, replaced in tests.
@@ -75,27 +71,3 @@ func (c *CLIExecutor) spawn(ctx context.Context, prompt string, outputCh chan<- 
 	return nil
 }
 
-// BuildStepPrompt assembles the prompt string sent to the executor for a pipeline step.
-func BuildStepPrompt(p *pipeline.Pipeline, step *pipeline.Step, skillContent, prevOutput string) (string, error) {
-	paramsJSON, err := json.Marshal(step.Params)
-	if err != nil {
-		return "", fmt.Errorf("marshal step params: %w", err)
-	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "You are executing step %q (%s) in pipeline %q.\n\n", step.Name, step.ID, p.Name)
-
-	if prevOutput != "" {
-		fmt.Fprintf(&b, "Context from previous step:\n%s\n\n", prevOutput)
-	}
-
-	b.WriteString("Your task:\n")
-	if skillContent != "" {
-		fmt.Fprintf(&b, "Use the following skill and execute it autonomously:\n%s\nWith parameters: %s\n", skillContent, paramsJSON)
-	} else {
-		fmt.Fprintf(&b, "Call MCP server %q, tool %q with these parameters:\n%s\nReport what you did and the result.\n",
-			step.Server, step.Tool, paramsJSON)
-	}
-
-	return b.String(), nil
-}

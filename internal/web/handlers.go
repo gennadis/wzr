@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"wzr/internal/pipeline"
+	"wzr/internal/prompts"
 )
 
 // --- helpers ---
@@ -171,15 +172,10 @@ func (s *Server) handleRunChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prompt := fmt.Sprintf(
-		"The following is the complete log of pipeline run %q:\n\n%s\n\nUser question: %s\n\nAnswer concisely.",
-		runID, record.Log, body.Question,
-	)
-
 	outputCh := make(chan string, 128)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.deps.Qwen.RunText(r.Context(), prompt, outputCh)
+		errCh <- s.deps.Qwen.RunText(r.Context(), prompts.BuildRunQA(runID, record.Log, body.Question), outputCh)
 		close(outputCh)
 	}()
 
@@ -276,22 +272,7 @@ func (s *Server) handleCreatorMessage(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(&historyStr, "[%s]: %s\n", label, h["text"])
 	}
 
-	prompt := "You are a WZR pipeline builder assistant.\n\n" +
-		"Available skills: " + skillList + "\n" +
-		"Available MCP servers: bitbucket (list_pull_requests, get_pr, merge_pr), " +
-		"jira (search_issues, transition_issue, get_issue), jenkins (trigger_build, get_build_status), " +
-		"confluence (get_page, create_page, update_page), postgres (query, list_tables)\n\n" +
-		"Steps added so far: " + string(stepsJSON) + "\n\n" +
-		"Chat so far:\n" + historyStr.String() + "\n" +
-		"Latest message from human: " + body.Message + "\n\n" +
-		"Reply rules (follow exactly):\n" +
-		"- If the message describes a pipeline step: output ONLY a single JSON object, no prose, no markdown fences:\n" +
-		`{"id":"kebab-id","name":"Step Name","type":"skill|mcp|approval","skill":"","server":"","tool":"","params":{}}` + "\n" +
-		"- If the message is conversational (greeting, question, unclear): reply with a short plain-text message.\n" +
-		"- Suggest exactly ONE step per reply. Never output more than one JSON object.\n" +
-		"- type must be exactly one of: skill, mcp, approval. No other values."
-
-	answer, err := s.runQwenCollect(r, prompt)
+	answer, err := s.runQwenCollect(r, prompts.BuildCreatorChat(skillList, string(stepsJSON), historyStr.String(), body.Message))
 	if err != nil {
 		jsonErr(w, http.StatusInternalServerError, "qwen error: "+err.Error())
 		return
@@ -311,49 +292,7 @@ func (s *Server) handleCreatorGenerate(w http.ResponseWriter, r *http.Request) {
 
 	skillList := s.buildSkillList()
 
-	prompt := fmt.Sprintf(
-		"Generate a WZR pipeline YAML for: %q\n\n"+
-			"Available skills: %s\n"+
-			"Available MCP servers: bitbucket, jira, jenkins, confluence, postgres\n\n"+
-			"STRICT RULES — violating any rule makes the pipeline unparseable:\n"+
-			"1. Every value under 'params:' (both top-level and per-step) MUST be a flat string. NEVER use nested maps or lists.\n"+
-			"   WRONG:  parameters:\\n    VERSION: \"1.0\"   ← nested map, forbidden\n"+
-			"   RIGHT:  parameters: \"VERSION=1.0\"        ← flat string, correct\n"+
-			"2. Parameter references use {{ .param_name }} syntax (with spaces, lowercase dot).\n"+
-			"   WRONG:  {{.Params.version}}  or  {{.release_version}}\n"+
-			"   RIGHT:  {{ .version }}\n"+
-			"3. timeout_minutes is only valid on steps with type: approval.\n\n"+
-			"YAML format (follow exactly):\n"+
-			"name: pipeline-name\n"+
-			"version: \"1.0\"\n"+
-			"description: one line description\n"+
-			"manual_minutes: N\n"+
-			"params:\n"+
-			"  param_name: \"\"\n"+
-			"steps:\n"+
-			"  - id: kebab-step-id\n"+
-			"    name: Human readable name\n"+
-			"    type: skill\n"+
-			"    skill: skill-name\n"+
-			"    params:\n"+
-			"      key: \"{{ .param_name }}\"\n"+
-			"  - id: mcp-step\n"+
-			"    name: MCP step\n"+
-			"    type: mcp\n"+
-			"    server: bitbucket\n"+
-			"    tool: list_pull_requests\n"+
-			"    params:\n"+
-			"      repo: \"{{ .param_name }}\"\n"+
-			"      state: MERGED\n"+
-			"  - id: approval-step\n"+
-			"    name: Human approval\n"+
-			"    type: approval\n"+
-			"    timeout_minutes: 30\n\n"+
-			"Respond with ONLY the YAML. No markdown fences. No explanation.",
-		body.Description, skillList,
-	)
-
-	yaml, err := s.runQwenCollect(r, prompt)
+	yaml, err := s.runQwenCollect(r, prompts.BuildCreatorGenerate(body.Description, skillList))
 	if err != nil {
 		jsonErr(w, http.StatusInternalServerError, "qwen error: "+err.Error())
 		return
