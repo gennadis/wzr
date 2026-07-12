@@ -91,6 +91,57 @@ func TestHub_UnsubscribeClosesChannel(t *testing.T) {
 	}
 }
 
+func TestHub_ReplayOnSubscribe(t *testing.T) {
+	hub := NewHub()
+	sse := NewSSENotifier(hub)
+
+	// Publish 3 events before any subscriber connects.
+	events := []StepEvent{
+		{RunID: "run1", StepID: "s1", Status: StatusRunning},
+		{RunID: "run1", StepID: "s1", Status: StatusNarration, Output: "hello"},
+		{RunID: "run1", StepID: "s1", Status: StatusSuccess},
+	}
+	for _, ev := range events {
+		if err := sse.Notify(context.Background(), ev); err != nil {
+			t.Fatalf("Notify: %v", err)
+		}
+	}
+
+	// Subscribe after the events were emitted — should receive all 3 replayed.
+	ch := hub.Subscribe("run1")
+	for i, want := range events {
+		select {
+		case got := <-ch:
+			if got.Status != want.Status || got.StepID != want.StepID {
+				t.Errorf("event %d: got {%s %s}, want {%s %s}", i, got.StepID, got.Status, want.StepID, want.Status)
+			}
+		default:
+			t.Errorf("event %d not replayed", i)
+		}
+	}
+}
+
+func TestHub_ReplayClearedOnUnsubscribe(t *testing.T) {
+	hub := NewHub()
+	sse := NewSSENotifier(hub)
+
+	if err := sse.Notify(context.Background(), StepEvent{RunID: "run2", StepID: "s1", Status: StatusRunning}); err != nil {
+		t.Fatalf("Notify: %v", err)
+	}
+
+	// First subscribe + unsubscribe clears the replay buffer.
+	hub.Subscribe("run2")
+	hub.Unsubscribe("run2")
+
+	// Second subscribe should receive no replayed events.
+	ch := hub.Subscribe("run2")
+	select {
+	case ev := <-ch:
+		t.Errorf("expected no replay after Unsubscribe, got %+v", ev)
+	default:
+	}
+}
+
 func TestSberChatNotifier_ReturnsNil(t *testing.T) {
 	n := &SberChatNotifier{BaseURL: "http://example.com", ChatID: "c1", Token: "tok"}
 	if err := n.Notify(context.Background(), StepEvent{}); err != nil {
