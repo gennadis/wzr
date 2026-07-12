@@ -31,7 +31,7 @@ Open [http://localhost:8080](http://localhost:8080).
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--port` | `8080` | HTTP listen port |
-| `--qwen` | `qwen` | Path to Qwen Code CLI binary |
+| `--gigacode` | `false` | Use gigacode executor instead of qwen |
 | `--pipelines` | `./pipelines` | Directory for pipeline YAML files |
 | `--history` | `./run_history.json` | Path to run history JSON file |
 | `--dry-run <name>` | — | Parse named pipeline, print it, exit |

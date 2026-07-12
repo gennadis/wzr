@@ -1,10 +1,9 @@
 package config
 
-
 // Config holds all WZR runtime configuration.
 type Config struct {
 	Port         string
-	QwenBinary   string
+	UseGigacode  bool
 	PipelinesDir string
 	HistoryFile  string
 }
@@ -13,7 +12,6 @@ type Config struct {
 func Default() Config {
 	return Config{
 		Port:         "8080",
-		QwenBinary:   "qwen",
 		PipelinesDir: "pipelines",
 		HistoryFile:  "run_history.json",
 	}

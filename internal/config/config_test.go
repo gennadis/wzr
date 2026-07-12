@@ -10,8 +10,8 @@ func TestDefault(t *testing.T) {
 	if c.Port != "8080" {
 		t.Errorf("Port: got %q, want %q", c.Port, "8080")
 	}
-	if c.QwenBinary != "qwen" {
-		t.Errorf("QwenBinary: got %q, want %q", c.QwenBinary, "qwen")
+	if c.UseGigacode {
+		t.Error("UseGigacode: want false by default")
 	}
 	if !strings.HasSuffix(c.PipelinesDir, "pipelines") {
 		t.Errorf("PipelinesDir: got %q, expected suffix 'pipelines'", c.PipelinesDir)

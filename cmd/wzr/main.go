@@ -24,7 +24,7 @@ func main() {
 	defaults := config.Default()
 	var (
 		port         = flag.String("port", defaults.Port, "HTTP listen port")
-		qwenBinary   = flag.String("qwen", defaults.QwenBinary, "path to qwen CLI binary")
+		useGigacode  = flag.Bool("gigacode", false, "use gigacode executor instead of qwen")
 		pipelinesDir = flag.String("pipelines", defaults.PipelinesDir, "directory for pipeline YAML files")
 		historyFile  = flag.String("history", defaults.HistoryFile, "path to run history JSON file")
 		dryRun       = flag.String("dry-run", "", "parse named pipeline, print struct, and exit")
@@ -33,7 +33,7 @@ func main() {
 
 	cfg := config.Config{
 		Port:         *port,
-		QwenBinary:   *qwenBinary,
+		UseGigacode:  *useGigacode,
 		PipelinesDir: *pipelinesDir,
 		HistoryFile:  *historyFile,
 	}
@@ -76,11 +76,13 @@ func main() {
 	approvalHub := runner.NewApprovalHub()
 	roiTracker := runner.NewROITracker(cfg.HistoryFile)
 	runStore := runner.NewRunStore()
-	qwenClient := qwen.NewQwen()
-	qwenClient.Command = cfg.QwenBinary // honors --qwen flag override
+	executor := qwen.NewQwen()
+	if cfg.UseGigacode {
+		executor = qwen.NewGigacode()
+	}
 	notifier := notify.NewSSENotifier(sseHub)
 
-	r := runner.NewRunner(skillReg, qwenClient, notifier, approvalHub, roiTracker, runStore)
+	r := runner.NewRunner(skillReg, executor, notifier, approvalHub, roiTracker, runStore)
 
 	deps := web.Deps{
 		StaticFS:    staticFS,
@@ -93,7 +95,7 @@ func main() {
 		Approvals:   approvalHub,
 		ROI:         roiTracker,
 		RunStore:    runStore,
-		Qwen:        qwenClient,
+		Qwen:        executor,
 	}
 
 	srv := &http.Server{
