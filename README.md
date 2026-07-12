@@ -9,9 +9,14 @@ Pipeline orchestrator for Sber internal infrastructure. Single Go binary — bac
 
 ## Screenshots
 
+<details>
+<summary>Home · Dashboard · Creator</summary>
+
 ![Home](docs/screenshots/home.png)
 ![Dashboard](docs/screenshots/dashboard.png)
 ![Creator](docs/screenshots/creator.png)
+
+</details>
 
 ## What it does
 
