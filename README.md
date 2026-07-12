@@ -50,10 +50,16 @@ Open [http://localhost:8080](http://localhost:8080).
 
 WZR uses [Qwen Code](https://github.com/QwenLM/qwen-code) as its autonomous execution engine. Install it and make sure the binary is on `$PATH` or pass `--qwen /path/to/qwen`.
 
-WZR runs each step as:
+WZR runs each pipeline step in agentic mode:
 
 ```sh
-qwen --approve-mode auto --allowed-tools run_sh_command --message "<step prompt>"
+qwen -p "<step prompt>" --output-format text --approval-mode auto-edit --allowed-tools run_shell_command
+```
+
+For creator and post-run chat, it runs in text-only mode (no tools):
+
+```sh
+qwen -p "<prompt>" --output-format text --allowed-tools ""
 ```
 
 ## Pipeline YAML format
@@ -127,19 +133,20 @@ WZR ships with 5 pre-configured MCP servers:
 
 ## Notifications
 
-WZR fires events to a `MultiNotifier`:
+WZR fires all run events through a `Notifier`. Currently only `SSENotifier` is wired in `main.go`:
 
-- **SSENotifier** — streams all events to the dashboard in real time
-- **SberChatNotifier** — stub; `TODO(team)` in `internal/notify/sberchat.go` to wire up the REST call
+- **SSENotifier** — streams all events to the dashboard in real time via Server-Sent Events; includes a replay buffer so late subscribers receive events emitted before they connected
+- **MultiNotifier** — fan-out wrapper available in `internal/notify/multi.go`; wire it in `main.go` when adding additional notifiers
+- **SberChatNotifier** — stub; `TODO(team)` in `internal/notify/sberchat.go` to implement the REST call
 
 ## Development
 
 ```sh
-go mod tidy
+go mod tidy && go mod verify
 go build ./...
 go test ./...
 go vet ./...
 golangci-lint run ./...
 ```
 
-All four must pass before committing.
+All six must pass before committing.
